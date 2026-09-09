@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MiCel — Sistema de Gestión</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/extensions.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen" class="login-screen">
+  <div class="login-stage">
+ 
+    <!-- Celular hecho trizas -->
+    <div class="phone-scene phone-broken" aria-hidden="true">
+      <div class="phone-3d">
+        <div class="phone-screen">
+          <svg class="crack-svg" viewBox="0 0 100 200" preserveAspectRatio="none">
+            <polyline class="crack-line"  points="50,0 46,40 60,55 40,80 55,100 35,130 50,160 42,200" />
+            <polyline class="crack-line crack-line2" points="50,60 20,70 10,50" />
+            <polyline class="crack-line crack-line3" points="55,110 85,120 95,100" />
+          </svg>
+        </div>
+        <span class="shard shard1"></span>
+        <span class="shard shard2"></span>
+        <span class="shard shard3"></span>
+        <span class="shard shard4"></span>
+        <span class="shard shard5"></span>
+      </div>
+      <div class="phone-shadow"></div>
+    </div>
+ 
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="logo-icon">MC</div>
+        <h1>MiCel</h1>
+        <p>Sistema de Gestión Integral v1.0</p>
+      </div>
+      <div class="form-group"><label>Usuario</label><input type="text" id="login-user" placeholder="ej: rramos"></div>
+      <div class="form-group"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••"></div>
+      <div id="login-error" style="display:none;background:var(--danger-light);color:var(--danger);padding:8px 12px;border-radius:6px;font-size:13px;text-align:center;margin-bottom:4px">Usuario o contraseña incorrectos</div>
+      <button class="btn-login" onclick="doLogin()">Ingresar al sistema</button>
+      <div class="login-users-table">
+        <div class="lut-title">Usuarios del sistema</div>
+        <div class="lut-row lut-header"><span>Usuario</span><span>Contraseña</span><span>Rol</span></div>
+        <div class="lut-row"><span>micel</span><span>1234</span><span class="lut-admin">Admin</span></div>
+        <div class="lut-row"><span>kevsolutions</span><span>1234</span><span class="lut-admin">Admin</span></div>
+        <div class="lut-row"><span>tec03</span><span>1234</span><span class="lut-tec">Técnico</span></div>
+        <div class="lut-row"><span>tec04</span><span>1234</span><span class="lut-tec">Técnico</span></div>
+        <div class="lut-row"><span>tec05</span><span>1234</span><span class="lut-tec">Técnico</span></div>
+        <div class="lut-row"><span>tec06</span><span>1234</span><span class="lut-tec">Técnico</span></div>
+        <div class="lut-row"><span>tec07</span><span>1234</span><span class="lut-tec">Técnico</span></div>
+        <div class="lut-row"><span>tec08</span><span>1234</span><span class="lut-tec">Técnico</span></div>
+        <div class="lut-row"><span>tec09</span><span>1234</span><span class="lut-tec">Técnico</span></div>
+        <div class="lut-row"><span>tec10 <span style="color:var(--danger);font-size:10px">(inactivo)</span></span><span>1234</span><span class="lut-tec">Técnico</span></div>
+      </div>
+    </div>
+ 
+    <!-- Celular "milagro" (reparado) -->
+    <div class="phone-scene phone-fixed" aria-hidden="true">
+      <div class="phone-3d">
+        <div class="phone-screen">
+          <div class="scan-line"></div>
+          <svg class="check-icon" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6" /></svg>
+        </div>
+        <span class="spark spark1"></span>
+        <span class="spark spark2"></span>
+        <span class="spark spark3"></span>
+      </div>
+      <div class="phone-shadow"></div>
+    </div>
+ 
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="app hidden">
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon-sm">MC</div>
+      <div><div class="sidebar-name">MiCel</div><div class="sidebar-sub">Sistema de Gestión</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" id="nav-historial" onclick="nav('historial',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        MiCel Amnesis
+      </a>
+      <a class="nav-item" id="nav-mis-ordenes" onclick="nav('mis-ordenes',this)" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Mis Órdenes
+      </a> 
+      <div class="nav-section-label">Principal</div>
+      <a class="nav-item active" onclick="nav('dashboard',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+      <div class="nav-section-label">Operaciones</div>
+      <a class="nav-item" onclick="nav('ordenes',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Órdenes de Servicio
+      </a>
+      <a class="nav-item" onclick="nav('stock',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Control de Stock
+      </a>
+      <a class="nav-item" onclick="nav('ventas',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>
+        Ventas
+      </a>
+      <a class="nav-item" onclick="nav('celulares',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+        Venta de Celulares
+      </a>
+      <div class="nav-section-label">Administración</div>
+      <a class="nav-item" onclick="nav('recibos',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Recibos
+      </a>
+      <a class="nav-item" onclick="nav('reportes',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Reportes
+      </a>
+      <a class="nav-item" onclick="nav('clientes',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Clientes
+      </a>
+      <a class="nav-item" id="nav-usuarios" onclick="nav('usuarios',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        Usuarios
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info" onclick="abrirPerfil()" title="Ver/editar mi perfil">
+        <div class="avatar-sm" id="sidebar-avatar" style="overflow:hidden;position:relative">
+          <span id="sidebar-avatar-initials">--</span>
+        </div>
+        <div>
+          <div class="user-name" id="sidebar-name">—</div>
+          <div class="user-role" id="sidebar-role">—</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">Salir</button>
+    </div>  
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Abrir menú">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div>
+        <h2 class="topbar-title" id="topbar-title">Principal</h2>
+        <span class="topbar-sub" id="topbar-sub">Resumen general del sistema</span>
+      </div>
+      <div class="topbar-actions">
+        <span id="topbar-rol" class="badge badge-purple" style="font-size:12px"></span>
+        <select class="select-branch" onchange="filterSucursal(this.value)">
+          <option value="all">Todas las sucursales</option>
+          <option value="Tiwanaku">Upea</option>
+          <option value="Marzo">KevSolutions</option>
+        </select>
+        <button class="btn-primary" id="topbar-btn" onclick="topAction('dashboard')">+ Nueva Orden</button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div class="panel active" id="panel-dashboard">
+        <div class="metrics-grid">
+          <div class="metric-card"><div class="metric-label">Órdenes activas</div><div class="metric-value">18</div><div class="metric-trend positive">↑ 3 ingresaron hoy</div></div>
+          <div class="metric-card"><div class="metric-label">Ingresos del mes</div><div class="metric-value">Bs 8,240</div><div class="metric-trend positive">↑ 12% vs mes anterior</div></div>
+          <div class="metric-card"><div class="metric-label">Stock crítico</div><div class="metric-value danger">4</div><div class="metric-trend negative">repuestos bajo mínimo</div></div>
+          <div class="metric-card"><div class="metric-label">Clientes atendidos</div><div class="metric-value">62</div><div class="metric-trend positive">este mes</div></div>
+        </div>
+        <div class="alerts">
+          <div class="alert alert-warn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><strong>Stock crítico:</strong> Pantallas Samsung A32 (2) · Baterías Xiaomi Redmi 9 (1) · Flex cámara Redmi 9 (0)</div>
+          <div class="alert alert-info"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>3 órdenes listos para entrega — clientes notificados</div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Últimas órdenes</h3><button class="btn-link" onclick="nav('ordenes',document.querySelectorAll('.nav-item')[1])">Ver todas →</button></div>
+          <table class="table"><thead><tr><th>Código</th><th>Cliente</th><th>Equipo — Servicio</th><th>Técnico</th><th>Sucursal</th><th>Estado</th></tr></thead>
+          <tbody id="dash-orders"></tbody></table>
+        </div>
+      </div>
+
+      <!-- ÓRDENES -->
+      <div class="panel" id="panel-ordenes">
+        <div class="progress-bar-steps">
+          <div class="pstep done">Recepción</div><div class="pstep done">Diagnóstico</div>
+          <div class="pstep current">Reparación</div><div class="pstep">Control calidad</div><div class="pstep">Entrega</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Todas las órdenes</h3>
+            <input class="input-search" placeholder="Buscar código, cliente o equipo..." oninput="filterOrders(this.value)">
+          </div>
+          <table class="table">
+            <thead><tr><th>Código</th><th>Cliente</th><th>Equipo</th><th>Servicio</th><th>Técnico</th><th>Sucursal</th><th>Estado</th><th>Monto</th><th>Acciones</th></tr></thead>
+            <tbody id="orders-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- STOCK -->
+      <div class="panel" id="panel-stock">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Inventario de repuestos</h3>
+            <input class="input-search" placeholder="Buscar repuesto o categoría..." oninput="filterStock(this.value)">
+          </div>
+          <table class="table">
+            <thead><tr><th>ID</th><th>Repuesto</th><th>Categoría</th><th>Stock</th><th>Mínimo</th><th>Precio</th><th>Nivel</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="stock-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VENTAS -->
+      <div class="panel" id="panel-ventas">
+        <div class="metrics-grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="metric-card"><div class="metric-label">Total hoy</div><div class="metric-value" id="ventas-total">Bs 0</div><div class="metric-trend" id="ventas-count">0 transacciones</div></div>
+          <div class="metric-card"><div class="metric-label">Método más usado</div><div class="metric-value" style="font-size:18px">Efectivo</div><div class="metric-trend">del día</div></div>
+          <div class="metric-card"><div class="metric-label">Técnico activo</div><div class="metric-value" style="font-size:16px">TEC-03</div><div class="metric-trend">más ventas hoy</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Registrar venta</h3></div>
+          <div class="form-grid">
+            <div class="form-group"><label>Cliente (opcional)</label><input type="text" id="venta-cliente" placeholder="Nombre del cliente"></div>
+            <div class="form-group"><label>Detalle del servicio / producto</label><input type="text" id="venta-detalle" placeholder="Ej: Cambio de pantalla Samsung A32"></div>
+            <div class="form-group"><label>Monto (Bs)</label><input type="number" id="venta-monto" placeholder="0.00"></div>
+            <div class="form-group"><label>Método de pago</label>
+              <select id="venta-pago"><option>Efectivo</option><option>QR (transferencia)</option><option>Transferencia bancaria</option></select>
+            </div>
+            <div class="form-group"><label>Técnico responsable</label><select id="venta-tech"></select></div>
+            <div class="form-group"><label>Sucursal</label>
+              <select><option>KevSolutions</option><option>Upea</option></select>
+            </div>
+          </div>
+          <div style="padding:0 18px 16px"><button class="btn-primary" onclick="registrarVenta()">Registrar venta</button></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Historial de hoy</h3></div>
+          <table class="table"><thead><tr><th>Hora</th><th>Cliente</th><th>Detalle</th><th>Técnico</th><th>Pago</th><th>Monto</th></tr></thead>
+          <tbody id="ventas-body"></tbody></table>
+        </div>
+      </div>
+
+      <!-- VENTA DE CELULARES -->
+      <div class="panel" id="panel-celulares">
+        <div class="metrics-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="metric-card"><div class="metric-label">Celulares vendidos</div><div class="metric-value" id="cel-vendidos">0</div><div class="metric-trend">este mes</div></div>
+          <div class="metric-card"><div class="metric-label">Ingresos por venta</div><div class="metric-value" id="cel-ingresos">Bs 0</div><div class="metric-trend positive">este mes</div></div>
+          <div class="metric-card"><div class="metric-label">Ganancia total</div><div class="metric-value" id="cel-ganancia">Bs 0</div><div class="metric-trend positive">margen sobre compra</div></div>
+          <div class="metric-card"><div class="metric-label">En inventario</div><div class="metric-value" id="cel-inventario">0</div><div class="metric-trend">equipos disponibles</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Registrar venta de celular</h3></div>
+          <div class="form-grid">
+            <div class="form-group"><label>Marca y modelo *</label><input type="text" id="cel-modelo" placeholder="Ej: Samsung Galaxy A54"></div>
+            <div class="form-group"><label>IMEI</label><input type="text" id="cel-imei" placeholder="15 dígitos"></div>
+            <div class="form-group"><label>Estado del equipo</label>
+              <select id="cel-estado"><option>Nuevo</option><option>Usado — Excelente</option><option>Usado — Bueno</option><option>Reacondicionado</option></select>
+            </div>
+            <div class="form-group"><label>Cliente</label><input type="text" id="cel-cliente" placeholder="Nombre del cliente"></div>
+            <div class="form-group"><label>Precio de compra (Bs)</label><input type="number" id="cel-compra" placeholder="0.00"></div>
+            <div class="form-group"><label>Precio de venta (Bs) *</label><input type="number" id="cel-venta" placeholder="0.00"></div>
+            <div class="form-group"><label>Método de pago</label>
+              <select id="cel-pago"><option>Efectivo</option><option>QR (transferencia)</option><option>Transferencia bancaria</option><option>Cuotas</option></select>
+            </div>
+            <div class="form-group"><label>Sucursal</label>
+              <select id="cel-branch"><option>KevSolutions</option><option>Upea</option></select>
+            </div>
+          </div>
+          <div style="padding:0 18px 16px"><button class="btn-primary" onclick="registrarVentaCelular()">Registrar venta</button></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Celulares vendidos</h3>
+            <input class="input-search" placeholder="Buscar por modelo, IMEI o cliente..." oninput="filterCelulares(this.value)">
+          </div>
+          <table class="table">
+            <thead><tr><th>Fecha</th><th>Modelo</th><th>IMEI</th><th>Estado</th><th>Cliente</th><th>Compra</th><th>Venta</th><th>Ganancia</th><th>Sucursal</th></tr></thead>
+            <tbody id="celulares-body"><tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:24px">No se han registrado ventas de celulares aún</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- RECIBOS -->
+      <div class="panel" id="panel-recibos">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Generar recibo</h3>
+            <span style="font-size:12px;color:var(--gray-400)">Selecciona una orden para precargar o llena manualmente</span>
+          </div>
+          <div class="form-grid">
+            <div class="form-group"><label>Precargar desde orden</label>
+              <select id="recibo-orden" onchange="precargarRecibo(this.value)"></select>
+            </div>
+            <div class="form-group"><label>N° de recibo (dejar vacío = automático)</label>
+              <input type="text" id="recibo-num" placeholder="Ej: REC-0001">
+            </div>
+            <div class="form-group"><label>Tipo de recibo</label>
+              <select id="recibo-tipo">
+                <option>Recibo de servicio técnico</option>
+                <option>Recibo de venta de repuesto</option>
+                <option>Recibo de entrega de equipo</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Cliente *</label><input type="text" id="recibo-cliente" placeholder="Nombre completo"></div>
+            <div class="form-group"><label>Teléfono</label><input type="text" id="recibo-telefono" placeholder="7XXXXXXX"></div>
+            <div class="form-group"><label>Equipo *</label><input type="text" id="recibo-equipo" placeholder="Marca y modelo"></div>
+            <div class="form-group"><label>Servicio realizado *</label><input type="text" id="recibo-servicio" placeholder="Descripción del servicio"></div>
+            <div class="form-group"><label>Monto total (Bs) *</label><input type="number" id="recibo-monto" placeholder="0.00"></div>
+            <div class="form-group"><label>Método de pago</label>
+              <select id="recibo-pago"><option>Efectivo</option><option>QR (transferencia)</option><option>Transferencia bancaria</option></select>
+            </div>
+            <div class="form-group"><label>Técnico responsable</label><select id="recibo-tech"></select></div>
+            <div class="form-group"><label>Sucursal</label>
+              <select id="recibo-sucursal"><option>KevSolutions</option><option>Upea</option></select>
+            </div>
+            <div class="form-group" style="grid-column:span 2"><label>Garantía / Observaciones</label>
+              <textarea id="recibo-obs" placeholder="Ej: Garantía de 30 días por el servicio realizado. No cubre daños por humedad."></textarea>
+            </div>
+          </div>
+          <div style="padding:0 18px 16px;display:flex;gap:10px">
+            <button class="btn-primary" onclick="generarRecibo()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Generar recibo
+            </button>
+            <button class="btn-secondary" onclick="limpiarFormRecibo()">Limpiar</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Recibos generados</h3>
+            <span class="badge badge-blue" id="recibo-count">0 recibos</span>
+          </div>
+          <table class="table">
+            <thead><tr><th>N° Recibo</th><th>Orden</th><th>Cliente</th><th>Servicio</th><th>Monto</th><th>Pago</th><th>Técnico</th><th>Hora</th><th></th></tr></thead>
+            <tbody id="recibos-body"><tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:24px">No se han generado recibos aún</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- REPORTES -->
+      <div class="panel" id="panel-reportes">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Filtrar reporte</h3></div>
+          <div class="form-grid" style="grid-template-columns:1fr 1fr auto auto">
+            <div class="form-group"><label>Desde</label><input type="date"></div>
+            <div class="form-group"><label>Hasta</label><input type="date"></div>
+            <div class="form-group"><label>&nbsp;</label><button class="btn-primary">Generar</button></div>
+            <div class="form-group"><label>&nbsp;</label><button class="btn-secondary">Exportar PDF</button></div>
+          </div>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-card"><div class="metric-label">Total servicios</div><div class="metric-value">143</div><div class="metric-trend">este mes</div></div>
+          <div class="metric-card"><div class="metric-label">Ingresos totales</div><div class="metric-value">Bs 23,480</div><div class="metric-trend positive">↑ vs mes anterior</div></div>
+          <div class="metric-card"><div class="metric-label">Tiempo prom.</div><div class="metric-value">1.8 días</div><div class="metric-trend">por reparación</div></div>
+          <div class="metric-card"><div class="metric-label">Satisfacción</div><div class="metric-value">94%</div><div class="metric-trend positive">según encuestas</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Servicios más frecuentes</h3></div>
+          <table class="table"><thead><tr><th>Servicio</th><th>Cantidad</th><th>Ingresos (Bs)</th><th>Participación</th></tr></thead>
+          <tbody>
+            <tr><td>Cambio de pantalla</td><td>48</td><td>8,640</td><td><div class="bar-wrap"><div class="bar-fill" style="width:70%"></div><span>70%</span></div></td></tr>
+            <tr><td>Pin de carga</td><td>32</td><td>3,840</td><td><div class="bar-wrap"><div class="bar-fill" style="width:47%"></div><span>47%</span></div></td></tr>
+            <tr><td>Flasheo / Firmware</td><td>28</td><td>2,240</td><td><div class="bar-wrap"><div class="bar-fill" style="width:40%"></div><span>40%</span></div></td></tr>
+            <tr><td>Backlight</td><td>19</td><td>3,040</td><td><div class="bar-wrap"><div class="bar-fill" style="width:28%"></div><span>28%</span></div></td></tr>
+          </tbody></table>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Rendimiento por técnico</h3></div>
+          <table class="table"><thead><tr><th>Código</th><th>Técnico</th><th>Órdenes</th><th>Ingresos</th><th>Sucursal</th></tr></thead>
+          <tbody id="report-tech-body"></tbody></table>
+        </div>
+      </div>
+
+      <!-- CLIENTES -->
+      <div class="panel" id="panel-clientes">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Registro de clientes</h3>
+            <input class="input-search" placeholder="Buscar por nombre o teléfono..." oninput="filterClientes(this.value)">
+          </div>
+          <table class="table">
+            <thead><tr><th>ID</th><th>Nombre</th><th>Teléfono</th><th>Visitas</th><th>Última visita</th><th>Sucursal</th><th>Recibos</th></tr></thead>
+            <tbody id="clientes-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- USUARIOS -->
+      <div class="panel" id="panel-usuarios">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Agregar nuevo usuario / técnico</h3></div>
+          <div class="form-grid">
+            <div class="form-group"><label>Nombre completo *</label><input type="text" id="new-user-name" placeholder="Ej: Carlos Mamani"></div>
+            <div class="form-group"><label>Usuario (login) *</label><input type="text" id="new-user-username" placeholder="Ej: tec11"></div>
+            <div class="form-group"><label>Correo *</label><input type="email" id="new-user-email" placeholder="tec11@micel.test"></div>
+            <div class="form-group"><label>Contraseña inicial *</label><input type="text" id="new-user-password" placeholder="Ej: 1234"></div>
+            <div class="form-group"><label>Rol</label>
+              <select id="new-user-rol"><option value="tecnico">Técnico</option><option value="administrador">Administrador</option></select>
+            </div>
+            <div class="form-group"><label>Sucursal</label>
+              <select id="new-user-branch"><option>KevSolutions</option><option>Upea</option><option>Ambas</option></select>
+            </div>
+          </div>
+          <div style="padding:0 18px 16px"><button class="btn-primary" onclick="guardarUsuario()">+ Agregar usuario</button></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Técnicos y usuarios del sistema</h3></div>
+          <table class="table">
+            <thead><tr><th>Código</th><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sucursal</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="users-body"></tbody>
+          </table>
+        </div>
+        <div class="alert alert-info">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Los clientes consultan el estado de su equipo desde la app móvil Flutter usando su código de seguimiento.
+        </div>
+      </div>
+      <!-- PANEL HISTORIAL -->
+      <div class="panel" id="panel-historial">  
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><span class="live-dot"></span>MiCel Anmesis</h3>
+            <div class="historial-toolbar">
+              <input class="input-search" id="historial-search" placeholder="Buscar por equipo, cliente, técnico..." oninput="filterHistorial(this.value)">
+              <select class="select-branch" id="historial-filter-branch" onchange="filterHistorial(document.getElementById('historial-search').value)">
+                <option value="">Todas las sucursales</option>
+                <option value="Tiwanaku">KevSolutions</option>
+                <option value="Av. 6 de Marzo">Upea</option>
+              </select>
+              <button class="btn-primary" id="btn-add-historial" onclick="openModal('historial-add')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Agregar entrada
+              </button>
+            </div>
+          </div>
+          <div style="padding: 16px">
+            <div class="historial-grid" id="historial-grid"></div>
+            <div id="historial-empty" style="text-align:center;padding:40px;color:var(--gray-400);display:none">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 12px;display:block;opacity:.4"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+              No hay entradas en el historial aún
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL MIS ÓRDENES -->
+      <div class="panel" id="panel-mis-ordenes">
+        <div class="tec-stats-grid">
+          <div class="tec-stat-card">
+            <div class="tec-stat-value" id="mis-total-ordenes">0</div>
+            <div class="tec-stat-label">Mis órdenes totales</div>
+          </div>
+          <div class="tec-stat-card">
+            <div class="tec-stat-value" id="mis-en-proceso">0</div>
+            <div class="tec-stat-label">En proceso ahora</div>
+          </div>
+          <div class="tec-stat-card">
+            <div class="tec-stat-value" id="mis-ingresos">Bs 0</div>
+            <div class="tec-stat-label">Ingresos generados</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title" id="mis-ordenes-title">Mis órdenes</h3>
+            <span class="badge badge-blue" id="mis-ordenes-badge">0 órdenes</span>
+          </div>
+          <table class="table">
+            <thead><tr><th>Código</th><th>Cliente</th><th>Equipo</th><th>Servicio</th><th>Sucursal</th><th>Estado</th><th>Monto</th><th>Acciones</th></tr></thead>
+            <tbody id="mis-ordenes-body"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Mis clientes atendidos</h3></div>
+          <table class="table">
+            <thead><tr><th>Cliente</th><th>Equipo</th><th>Servicio</th><th>Monto</th><th>Estado</th><th>Fecha</th></tr></thead>
+            <tbody id="mis-clientes-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL: NUEVA ORDEN -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal-box">
+    <div class="modal-header"><h3>Nueva Orden de Servicio</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Cliente *</label><input type="text" id="modal-client" placeholder="Nombre completo"></div>
+      <div class="form-group"><label>Teléfono</label><input type="text" id="modal-phone" placeholder="7XXXXXXX"></div>
+      <div class="form-group"><label>Equipo (marca y modelo) *</label><input type="text" id="modal-device" placeholder="Ej: Samsung Galaxy A32"></div>
+      <div class="form-group"><label>Monto estimado (Bs)</label><input type="number" id="modal-monto" placeholder="0.00"></div>
+      <div class="form-group" style="grid-column:span 2"><label>Servicio solicitado *</label>
+        <select id="modal-service">
+          <option>Cambio de pantalla</option><option>Cambio de batería</option><option>Pin de carga</option>
+          <option>Backlight (retroiluminación)</option><option>Flasheo / Firmware</option>
+          <option>Eliminación cuenta Google</option><option>Eliminación cuenta Xiaomi Cloud</option>
+          <option>Eliminación Samsung Account</option><option>Otro</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:span 2"><label>Observaciones del equipo</label>
+        <textarea id="modal-obs" placeholder="Estado físico, accesorios entregados, contraseña, etc."></textarea>
+      </div>
+      <div class="form-group"><label>Sucursal</label>
+        <select id="modal-branch"><option>KevSolutions</option><option>Upea</option></select>
+      </div>
+      <div class="form-group"><label>Técnico asignado</label><select id="modal-tech"></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarOrden()">Guardar orden</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDITAR ORDEN -->
+<div class="modal-overlay hidden" id="modal-editar-orden">
+  <div class="modal-box">
+    <div class="modal-header"><h3>Editar Orden <span id="edit-order-code" style="color:var(--primary)"></span></h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <input type="hidden" id="edit-order-code">
+    <div class="form-grid">
+      <div class="form-group"><label>Cliente</label><input type="text" id="edit-order-client"></div>
+      <div class="form-group"><label>Teléfono</label><input type="text" id="edit-order-phone"></div>
+      <div class="form-group"><label>Equipo</label><input type="text" id="edit-order-device"></div>
+      <div class="form-group"><label>Servicio</label><input type="text" id="edit-order-service"></div>
+      <div class="form-group"><label>Monto final (Bs) ← precio del técnico/admin</label><input type="number" id="edit-order-monto" placeholder="0.00"></div>
+      <div class="form-group"><label>Estado</label>
+        <select id="edit-order-status">
+          <option value="Recepción">Recepción</option><option value="Diagnóstico">Diagnóstico</option>
+          <option value="En proceso">En proceso</option><option value="Listo">Listo</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Técnico</label><select id="edit-order-tech"></select></div>
+      <div class="form-group" style="grid-column:span 2"><label>Observaciones / Garantía</label>
+        <textarea id="edit-order-obs"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarEdicionOrden()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVO REPUESTO -->
+<div class="modal-overlay hidden" id="modal-repuesto">
+  <div class="modal-box" style="width:440px">
+    <div class="modal-header"><h3>Agregar repuesto al inventario</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:span 2"><label>Nombre del repuesto *</label><input type="text" id="new-rep-name" placeholder="Ej: Pantalla Samsung A53"></div>
+      <div class="form-group"><label>Categoría *</label>
+        <select id="new-rep-cat">
+          <option>Pantallas</option><option>Baterías</option><option>Conectores</option>
+          <option>Retroiluminación</option><option>Flex</option><option>Audio</option><option>Accesorios</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="new-rep-precio" placeholder="0.00"></div>
+      <div class="form-group"><label>Cantidad inicial</label><input type="number" id="new-rep-qty" placeholder="0" value="0"></div>
+      <div class="form-group"><label>Stock mínimo</label><input type="number" id="new-rep-min" placeholder="5" value="5"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarRepuesto()">Agregar repuesto</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDITAR REPUESTO -->
+<div class="modal-overlay hidden" id="modal-editar-repuesto">
+  <div class="modal-box" style="width:440px">
+    <div class="modal-header"><h3>Editar repuesto</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <input type="hidden" id="edit-rep-id">
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:span 2"><label>Nombre</label><input type="text" id="edit-rep-name"></div>
+      <div class="form-group"><label>Categoría</label><input type="text" id="edit-rep-cat"></div>
+      <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="edit-rep-precio"></div>
+      <div class="form-group"><label>Stock actual</label><input type="number" id="edit-rep-qty"></div>
+      <div class="form-group"><label>Stock mínimo</label><input type="number" id="edit-rep-min"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarEdicionRepuesto()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: AJUSTE DE STOCK RÁPIDO -->
+<div class="modal-overlay hidden" id="modal-ajuste-stock">
+  <div class="modal-box" style="width:420px">
+    <div class="modal-header"><h3>Ajuste rápido de stock</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <input type="hidden" id="adj-id">
+    <div style="padding:16px 20px">
+      <div style="font-size:14px;font-weight:600;color:var(--gray-800);margin-bottom:4px" id="adj-name"></div>
+      <div style="font-size:12px;color:var(--gray-400);margin-bottom:16px">Modifica el stock de este repuesto individualmente</div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr">
+        <div class="form-group"><label>Stock mínimo</label><input type="number" id="adj-min"></div>
+        <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="adj-precio"></div>
+        <div class="form-group"><label>Stock actual</label><input type="number" id="adj-qty" style="font-weight:600" readonly></div>
+        <div class="form-group"><label>Operación</label>
+          <select id="adj-operacion">
+            <option value="add">Sumar (+)</option>
+            <option value="sub">Restar (−)</option>
+            <option value="set">Establecer (=)</option>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:span 2"><label>Cantidad</label>
+          <input type="number" id="adj-cantidad" placeholder="Ingrese cantidad" min="0">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarAjusteStock()">Aplicar ajuste</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVO CLIENTE -->
+<div class="modal-overlay hidden" id="modal-cliente">
+  <div class="modal-box" style="width:420px">
+    <div class="modal-header"><h3>Nuevo cliente</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Nombre completo *</label><input type="text" id="new-cli-name" placeholder="Nombre del cliente"></div>
+      <div class="form-group"><label>Teléfono *</label><input type="text" id="new-cli-phone" placeholder="7XXXXXXX"></div>
+      <div class="form-group" style="grid-column:span 2"><label>Sucursal de atención</label>
+        <select id="new-cli-branch"><option>KevSolutions</option><option>Upea</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarCliente()">Guardar cliente</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: VISTA PREVIA RECIBO -->
+<div class="modal-overlay hidden" id="modal-recibo">
+  <div class="modal-box" style="width:520px">
+    <div class="modal-header">
+      <h3>Vista previa del recibo</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="recibo-preview" style="padding:20px;max-height:65vh;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cerrar</button>
+      <button class="btn-primary" onclick="imprimirRecibo()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Imprimir / Guardar PDF
+      </button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- MODAL: EDITAR RECIBO -->
+<div class="modal-overlay hidden" id="modal-editar-recibo">
+  <div class="modal-box" style="width:520px">
+    <div class="modal-header">
+      <h3>Editar recibo <span id="edit-rec-num-display" style="color:var(--primary)"></span></h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <input type="hidden" id="edit-rec-num">
+    <div class="form-grid">
+      <div class="form-group"><label>Cliente</label><input type="text" id="edit-rec-cliente"></div>
+      <div class="form-group"><label>Teléfono</label><input type="text" id="edit-rec-telefono"></div>
+      <div class="form-group"><label>Equipo</label><input type="text" id="edit-rec-equipo"></div>
+      <div class="form-group"><label>Servicio realizado</label><input type="text" id="edit-rec-servicio"></div>
+      <div class="form-group"><label>Monto (Bs)</label><input type="number" id="edit-rec-monto"></div>
+      <div class="form-group"><label>Método de pago</label>
+        <select id="edit-rec-pago">
+          <option value="Efectivo">Efectivo</option>
+          <option value="QR (transferencia)">QR (transferencia)</option>
+          <option value="Transferencia bancaria">Transferencia bancaria</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Técnico responsable ✏️</label>
+        <select id="edit-rec-tech"></select>
+      </div>
+      <div class="form-group"><label>Sucursal</label>
+        <select id="edit-rec-sucursal">
+          <option value="Tiwanaku">KevSolutions</option>
+          <option value="Av. 6 de Marzo">Upea</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:span 2"><label>Garantía / Observaciones</label>
+        <textarea id="edit-rec-obs"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarEdicionRecibo()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CAMBIO RÁPIDO DE ESTADO -->
+<div class="modal-overlay hidden" id="modal-estado">
+  <div class="modal-box" style="width:380px">
+    <div class="modal-header">
+      <h3>Cambiar estado de orden</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <input type="hidden" id="estado-hidden-code">
+    <div style="padding:20px">
+      <div style="font-size:14px;font-weight:600;color:var(--gray-800);margin-bottom:2px" id="estado-order-code"></div>
+      <div style="font-size:12px;color:var(--gray-400);margin-bottom:18px" id="estado-order-info"></div>
+      <div class="form-group">
+        <label>Nuevo estado</label>
+        <select id="estado-select" style="font-size:14px;padding:10px">
+          <option value="Recepción">📥 Recepción</option>
+          <option value="Diagnóstico">🔍 Diagnóstico</option>
+          <option value="En proceso">🔧 En proceso (reparación)</option>
+          <option value="Listo">✅ Listo para entrega</option>
+        </select>
+      </div>
+      <div style="margin-top:10px;padding:10px;background:var(--gray-50);border-radius:6px;font-size:12px;color:var(--gray-500)">
+        Cualquier técnico o administrador puede actualizar el estado de la orden.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarEstado()">Guardar estado</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL STOCK DETALLE -->
+<div class="modal-overlay hidden" id="modal-stock-detail">
+  <div class="stock-modal-box">
+    <div class="modal-header">
+      <h3>Control de Stock — Inventario</h3>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input class="input-search" id="stock-modal-search" placeholder="Buscar..." oninput="filterStockModal(this.value)" style="width:180px">
+        <button class="btn-primary" onclick="openModal('repuesto')">+ Agregar</button>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <div class="stock-modal-body">
+      <div class="stock-sidebar" id="stock-modal-sidebar"></div>
+      <div class="stock-main-area">
+        <div class="stock-main-toolbar">
+          <span style="font-size:12px;color:var(--gray-500)" id="stock-modal-count">0 repuestos</span>
+          <div style="display:flex;gap:6px;margin-left:auto">
+              <select class="select-branch" id="stock-modal-filter" onchange="filterStockModalStatus(this.value)">
+                <option value="all">Todos los estados</option>
+                <option value="low" selected>⚠️ Crítico y sin stock</option>
+                <option value="zero">🔴 Sin stock</option>
+              </select>
+          </div>
+        </div>
+        <div class="stock-grid" id="stock-modal-grid"></div>
+        <div class="stock-detail-panel" id="stock-detail-panel">
+          <div class="stock-detail-stat"><div class="val" id="sdp-qty">—</div><div class="lbl">Stock actual</div></div>
+          <div class="stock-detail-stat"><div class="val" id="sdp-min">—</div><div class="lbl">Mínimo</div></div>
+          <div class="stock-detail-stat"><div class="val" id="sdp-precio">—</div><div class="lbl">Precio (Bs)</div></div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <span id="sdp-name" style="font-size:13px;font-weight:600;color:var(--gray-800)"></span>
+            <button class="btn-secondary" onclick="editarRepuesto(stockDetailId)">Editar</button>
+            <button class="btn-primary" onclick="ajustarStock(stockDetailId)">Ajustar stock</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PERFIL -->
+<div class="modal-overlay hidden" id="modal-perfil">
+  <div class="profile-modal-box">
+    <div class="modal-header">
+      <h3>Mi perfil</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="profile-avatar-section">
+      <div class="profile-avatar-lg" id="perfil-avatar-display" onclick="document.getElementById('perfil-foto-input').click()">
+        <span id="perfil-avatar-initials">--</span>
+        <div class="profile-avatar-overlay">📷 Cambiar</div>
+        <input type="file" id="perfil-foto-input" accept="image/*" style="display:none" onchange="cambiarFotoPerfil(event)">
+      </div>
+      <div class="profile-name" id="perfil-display-name">—</div>
+      <div class="profile-role" id="perfil-display-role">—</div>
+      <div id="perfil-superadmin-badge" class="profile-superadmin hidden">⭐ Super Admin</div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:span 2">
+        <label>Nombre completo</label>
+        <input type="text" id="perfil-nombre" placeholder="Tu nombre">
+      </div>
+      <div class="form-group" id="perfil-email-group">
+        <label>Correo electrónico</label>
+        <input type="email" id="perfil-email" placeholder="correo@ejemplo.com">
+        <span style="font-size:11px;color:var(--gray-400)">Solo admins pueden editar el correo</span>
+      </div>
+      <div class="form-group">
+        <label>Teléfono (opcional)</label>
+        <input type="text" id="perfil-telefono" placeholder="7XXXXXXX">
+      </div>
+      <div class="form-group">
+        <label>Nueva contraseña</label>
+        <input type="password" id="perfil-pass-new" placeholder="Dejar vacío para no cambiar">
+      </div>
+      <div class="form-group">
+        <label>Confirmar contraseña</label>
+        <input type="password" id="perfil-pass-confirm" placeholder="Repetir nueva contraseña">
+      </div>
+      <div class="form-group" id="perfil-sa-user-group" style="display:none">
+        <label>Usuario (login)</label>
+        <input type="text" id="perfil-sa-username" placeholder="nombre_usuario">
+      </div>
+      <div class="form-group" id="perfil-sa-rol-group" style="display:none">
+        <label>Rol del sistema</label>
+        <select id="perfil-sa-rol">
+          <option value="Técnico">Técnico</option>
+          <option value="Administrador">Administrador</option>
+          <option value="SuperAdmin">SuperAdmin</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarPerfil()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVO USUARIO -->
+<div class="modal-overlay hidden" id="modal-nuevo-usuario">
+  <div class="modal-box" style="width:500px">
+    <div class="modal-header">
+      <h3>Nuevo usuario del sistema</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>Nombre completo *</label><input type="text" id="nu-nombre" placeholder="Nombre completo"></div>
+      <div class="form-group"><label>Usuario (login) *</label><input type="text" id="nu-user" placeholder="ej: jperez"></div>
+      <div class="form-group"><label>Contraseña *</label><input type="password" id="nu-pass" placeholder="Contraseña segura"></div>
+      <div class="form-group"><label>Rol *</label>
+        <select id="nu-rol">
+          <option value="Técnico">Técnico</option>
+          <option value="Administrador">Administrador</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Sucursal</label>
+        <select id="nu-branch">
+          <option>KevSolutions</option>
+          <option>Upea</option>
+          <option>Ambas</option>
+        </select>
+      </div>
+      <div class="form-group" id="nu-email-group">
+        <label>Correo electrónico</label>
+        <input type="email" id="nu-email" placeholder="correo@ejemplo.com">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Estado</label>
+        <select id="nu-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarNuevoUsuario()">Crear usuario</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR USUARIO -->
+<div class="modal-overlay hidden" id="modal-editar-usuario">
+  <div class="modal-box" style="width:500px">
+    <div class="modal-header">
+      <h3>Editar usuario — <span id="eu-display-code" style="color:var(--primary)"></span></h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <input type="hidden" id="eu-code">
+    <div class="form-grid">
+      <div class="form-group"><label>Nombre completo</label><input type="text" id="eu-nombre"></div>
+      <div class="form-group"><label>Usuario (login)</label><input type="text" id="eu-user"></div>
+      <div class="form-group"><label>Nueva contraseña</label><input type="password" id="eu-pass" placeholder="Dejar vacío para no cambiar"></div>
+      <div class="form-group"><label>Rol</label>
+        <select id="eu-rol">
+          <option value="Técnico">Técnico</option>
+          <option value="Administrador">Administrador</option>
+          <option value="SuperAdmin">SuperAdmin</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Sucursal</label>
+        <select id="eu-branch">
+          <option>KevSolutions</option>
+          <option>Upea</option>
+          <option>Ambas</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Correo electrónico</label>
+        <input type="email" id="eu-email" placeholder="correo@ejemplo.com">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Estado</label>
+        <select id="eu-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarEdicionUsuario()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AGREGAR HISTORIAL -->
+<div class="modal-overlay hidden" id="modal-historial-add">
+  <div class="modal-box" style="width:520px">
+    <div class="modal-header">
+      <h3>Agregar entrada al historial</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>Título *</label><input type="text" id="ha-titulo" placeholder="Ej: Cambio de pantalla completado"></div>
+      <div class="form-group"><label>Cliente</label><input type="text" id="ha-cliente" placeholder="Nombre del cliente"></div>
+      <div class="form-group"><label>Equipo</label><input type="text" id="ha-equipo" placeholder="Marca y modelo"></div>
+      <div class="form-group"><label>Servicio</label><input type="text" id="ha-servicio" placeholder="Tipo de reparación"></div>
+      <div class="form-group"><label>Técnico responsable</label><select id="ha-tech"></select></div>
+      <div class="form-group"><label>Sucursal</label>
+        <select id="ha-branch"><option>KevSolutions</option><option>Upea</option></select>
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Descripción / observaciones</label>
+        <textarea id="ha-desc" placeholder="Detalles del trabajo realizado..."></textarea>
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Fotografía</label>
+        <div class="historial-upload-zone" onclick="document.getElementById('ha-file-input').click()">
+          <input type="file" id="ha-file-input" accept="image/*" style="position:absolute;opacity:0;inset:0;cursor:pointer" onchange="previewHistorialImg(event)">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px;display:block;color:var(--gray-400)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <div style="font-size:13px;color:var(--gray-500)">Haz clic o arrastra una imagen aquí</div>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:4px">PNG, JPG, WebP</div>
+        </div>
+        <img id="ha-preview-img" class="historial-upload-preview" alt="preview">
+        <input type="hidden" id="ha-img-data">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarHistorialEntry()">Guardar entrada</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL QR -->
+<div class="modal-overlay hidden" id="modal-qr">
+  <div class="qr-modal-box">
+    <div class="modal-header" style="border:none;padding-bottom:0">
+      <h3>Código QR de seguimiento</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="qr-canvas-wrap">
+      <div id="qr-canvas-container"></div>
+    </div>
+    <div style="font-size:13px;font-weight:600;color:var(--gray-800)" id="qr-entry-title"></div>
+    <div style="font-size:11px;color:var(--gray-400);margin-top:4px" id="qr-entry-sub"></div>
+    <div style="font-size:11px;color:var(--gray-500);margin-top:14px;background:var(--gray-50);border-radius:6px;padding:10px;word-break:break-all" id="qr-entry-data"></div>
+    <div class="modal-footer" style="border:none;justify-content:center;padding-top:14px">
+      <button class="btn-secondary" onclick="closeModal()">Cerrar</button>
+      <button class="btn-primary" onclick="descargarQR()">Descargar QR</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</body>
+</html>

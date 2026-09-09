@@ -1,0 +1,382 @@
+<!--
+  ============================================================
+  EXTENSIONS_SNIPPETS.HTML — AmilcarTech v3.0 AddOns
+  
+  INSTRUCCIONES DE INSTALACIÓN:
+  
+  1. En <head> del index.html, agrega DESPUÉS del link de styles.css:
+     <link rel="stylesheet" href="css/extensions.css">
+     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
+  2. En el sidebar <nav class="sidebar-nav">, ANTES del cierre </nav>,
+     agrega el bloque [A] — Nav item Historial.
+  
+  3. En <div class="content">, ANTES del cierre </div> de content,
+     agrega el bloque [B] — Panel Historial y Panel Técnico Mis Órdenes.
+  
+  4. ANTES de </body>, agrega todos los bloques [C-H] — Modales nuevos.
+  
+  5. Agrega <script src="js/extensions.js"></script> ANTES de </body>,
+     DESPUÉS de los scripts data.js y app.js existentes.
+  
+  6. En el sidebar-footer, reemplaza <div class="user-info"> con el
+     bloque [I] — UserInfo clickeable.
+  ============================================================
+-->
+
+<!-- ===== [A] NAV ITEM HISTORIAL (va dentro de sidebar-nav) ===== -->
+<a class="nav-item" id="nav-historial" onclick="nav('historial',this)">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+  Historial
+</a>
+<a class="nav-item" id="nav-mis-ordenes" onclick="nav('mis-ordenes',this)" style="display:none">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+  Mis Órdenes
+</a>
+
+
+<!-- ===== [B1] PANEL HISTORIAL ===== -->
+<div class="panel" id="panel-historial">
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title"><span class="live-dot"></span>Historial de reparaciones</h3>
+      <div class="historial-toolbar">
+        <input class="input-search" id="historial-search" placeholder="Buscar por equipo, cliente, técnico..." oninput="filterHistorial(this.value)">
+        <select class="select-branch" id="historial-filter-branch" onchange="filterHistorial(document.getElementById('historial-search').value)">
+          <option value="">Todas las sucursales</option>
+          <option value="Tiwanaku">Tiwanaku</option>
+          <option value="Av. 6 de Marzo">Av. 6 de Marzo</option>
+        </select>
+        <button class="btn-primary" id="btn-add-historial" onclick="openModal('historial-add')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Agregar entrada
+        </button>
+      </div>
+    </div>
+    <div style="padding: 16px">
+      <div class="historial-grid" id="historial-grid">
+        <!-- renderizado por JS -->
+      </div>
+      <div id="historial-empty" style="text-align:center;padding:40px;color:var(--gray-400);display:none">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 12px;display:block;opacity:.4"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        No hay entradas en el historial aún
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== [B2] PANEL MIS ÓRDENES (solo técnico) ===== -->
+<div class="panel" id="panel-mis-ordenes">
+  <div class="tec-stats-grid">
+    <div class="tec-stat-card">
+      <div class="tec-stat-value" id="mis-total-ordenes">0</div>
+      <div class="tec-stat-label">Mis órdenes totales</div>
+    </div>
+    <div class="tec-stat-card">
+      <div class="tec-stat-value" id="mis-en-proceso">0</div>
+      <div class="tec-stat-label">En proceso ahora</div>
+    </div>
+    <div class="tec-stat-card">
+      <div class="tec-stat-value" id="mis-ingresos">Bs 0</div>
+      <div class="tec-stat-label">Ingresos generados</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title" id="mis-ordenes-title">Mis órdenes</h3>
+      <span class="badge badge-blue" id="mis-ordenes-badge">0 órdenes</span>
+    </div>
+    <table class="table">
+      <thead><tr><th>Código</th><th>Cliente</th><th>Equipo</th><th>Servicio</th><th>Sucursal</th><th>Estado</th><th>Monto</th><th>Acciones</th></tr></thead>
+      <tbody id="mis-ordenes-body"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3 class="card-title">Mis clientes atendidos</h3></div>
+    <table class="table">
+      <thead><tr><th>Cliente</th><th>Equipo</th><th>Servicio</th><th>Monto</th><th>Estado</th><th>Fecha</th></tr></thead>
+      <tbody id="mis-clientes-body"></tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- ===== [C] MODAL STOCK MEJORADO (reemplaza funcionalidad stock) ===== -->
+<div class="modal-overlay hidden" id="modal-stock-detail">
+  <div class="stock-modal-box">
+    <div class="modal-header">
+      <h3>Control de Stock — Inventario</h3>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input class="input-search" id="stock-modal-search" placeholder="Buscar..." oninput="filterStockModal(this.value)" style="width:180px">
+        <button class="btn-primary" onclick="openModal('repuesto')">+ Agregar</button>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <div class="stock-modal-body">
+      <!-- Sidebar categorías -->
+      <div class="stock-sidebar" id="stock-modal-sidebar">
+        <div class="stock-cat-item active" data-cat="all" onclick="filterStockModalCat('all',this)">
+          <span>Todos</span><span class="stock-cat-count" id="scat-all">0</span>
+        </div>
+        <!-- categorías dinámicas -->
+      </div>
+      <!-- Grid de items -->
+      <div class="stock-main-area">
+        <div class="stock-main-toolbar">
+          <span style="font-size:12px;color:var(--gray-500)" id="stock-modal-count">0 repuestos</span>
+          <div style="display:flex;gap:6px;margin-left:auto">
+            <select class="select-branch" id="stock-modal-filter" onchange="filterStockModalStatus(this.value)">
+              <option value="all">Todos los estados</option>
+              <option value="ok">✅ OK</option>
+              <option value="low">⚠️ Crítico</option>
+              <option value="zero">🔴 Sin stock</option>
+            </select>
+          </div>
+        </div>
+        <div class="stock-grid" id="stock-modal-grid">
+          <!-- cards dinámicas -->
+        </div>
+        <!-- Panel detalle inline -->
+        <div class="stock-detail-panel" id="stock-detail-panel">
+          <div class="stock-detail-stat"><div class="val" id="sdp-qty">—</div><div class="lbl">Stock actual</div></div>
+          <div class="stock-detail-stat"><div class="val" id="sdp-min">—</div><div class="lbl">Mínimo</div></div>
+          <div class="stock-detail-stat"><div class="val" id="sdp-precio">—</div><div class="lbl">Precio (Bs)</div></div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <span id="sdp-name" style="font-size:13px;font-weight:600;color:var(--gray-800)"></span>
+            <button class="btn-secondary" onclick="editarRepuesto(stockDetailId)">Editar</button>
+            <button class="btn-primary" onclick="ajustarStock(stockDetailId)">Ajustar stock</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== [D] MODAL PERFIL DE USUARIO ===== -->
+<div class="modal-overlay hidden" id="modal-perfil">
+  <div class="profile-modal-box">
+    <div class="modal-header">
+      <h3>Mi perfil</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <!-- Avatar -->
+    <div class="profile-avatar-section">
+      <div class="profile-avatar-lg" id="perfil-avatar-display" onclick="document.getElementById('perfil-foto-input').click()">
+        <span id="perfil-avatar-initials">--</span>
+        <div class="profile-avatar-overlay">📷 Cambiar</div>
+        <input type="file" id="perfil-foto-input" accept="image/*" style="display:none" onchange="cambiarFotoPerfil(event)">
+      </div>
+      <div class="profile-name" id="perfil-display-name">—</div>
+      <div class="profile-role" id="perfil-display-role">—</div>
+      <div id="perfil-superadmin-badge" class="profile-superadmin hidden">⭐ Super Admin</div>
+    </div>
+    <!-- Formulario -->
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:span 2">
+        <label>Nombre completo</label>
+        <input type="text" id="perfil-nombre" placeholder="Tu nombre">
+      </div>
+      <div class="form-group" id="perfil-email-group">
+        <label>Correo electrónico</label>
+        <input type="email" id="perfil-email" placeholder="correo@ejemplo.com">
+        <span style="font-size:11px;color:var(--gray-400)">Solo admins pueden editar el correo</span>
+      </div>
+      <div class="form-group">
+        <label>Teléfono (opcional)</label>
+        <input type="text" id="perfil-telefono" placeholder="7XXXXXXX">
+      </div>
+      <div class="form-group">
+        <label>Nueva contraseña</label>
+        <input type="password" id="perfil-pass-new" placeholder="Dejar vacío para no cambiar">
+      </div>
+      <div class="form-group">
+        <label>Confirmar contraseña</label>
+        <input type="password" id="perfil-pass-confirm" placeholder="Repetir nueva contraseña">
+      </div>
+      <!-- Solo superadmin ve estos campos -->
+      <div class="form-group" id="perfil-sa-user-group" style="display:none">
+        <label>Usuario (login)</label>
+        <input type="text" id="perfil-sa-username" placeholder="nombre_usuario">
+      </div>
+      <div class="form-group" id="perfil-sa-rol-group" style="display:none">
+        <label>Rol del sistema</label>
+        <select id="perfil-sa-rol">
+          <option value="Técnico">Técnico</option>
+          <option value="Administrador">Administrador</option>
+          <option value="SuperAdmin">SuperAdmin</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarPerfil()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== [E] MODAL NUEVO USUARIO (admin/superadmin) ===== -->
+<div class="modal-overlay hidden" id="modal-nuevo-usuario">
+  <div class="modal-box" style="width:500px">
+    <div class="modal-header">
+      <h3>Nuevo usuario del sistema</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>Nombre completo *</label><input type="text" id="nu-nombre" placeholder="Nombre completo"></div>
+      <div class="form-group"><label>Usuario (login) *</label><input type="text" id="nu-user" placeholder="ej: jperez"></div>
+      <div class="form-group"><label>Contraseña *</label><input type="password" id="nu-pass" placeholder="Contraseña segura"></div>
+      <div class="form-group"><label>Rol *</label>
+        <select id="nu-rol">
+          <option value="Técnico">Técnico</option>
+          <option value="Administrador">Administrador</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Sucursal</label>
+        <select id="nu-branch">
+          <option>Tiwanaku</option>
+          <option>Av. 6 de Marzo</option>
+          <option>Ambas</option>
+        </select>
+      </div>
+      <div class="form-group" id="nu-email-group">
+        <label>Correo electrónico</label>
+        <input type="email" id="nu-email" placeholder="correo@ejemplo.com">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Estado</label>
+        <select id="nu-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarNuevoUsuario()">Crear usuario</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== [F] MODAL EDITAR USUARIO (superadmin) ===== -->
+<div class="modal-overlay hidden" id="modal-editar-usuario">
+  <div class="modal-box" style="width:500px">
+    <div class="modal-header">
+      <h3>Editar usuario — <span id="eu-display-code" style="color:var(--primary)"></span></h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <input type="hidden" id="eu-code">
+    <div class="form-grid">
+      <div class="form-group"><label>Nombre completo</label><input type="text" id="eu-nombre"></div>
+      <div class="form-group"><label>Usuario (login)</label><input type="text" id="eu-user"></div>
+      <div class="form-group"><label>Nueva contraseña</label><input type="password" id="eu-pass" placeholder="Dejar vacío para no cambiar"></div>
+      <div class="form-group"><label>Rol</label>
+        <select id="eu-rol">
+          <option value="Técnico">Técnico</option>
+          <option value="Administrador">Administrador</option>
+          <option value="SuperAdmin">SuperAdmin</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Sucursal</label>
+        <select id="eu-branch">
+          <option>Tiwanaku</option>
+          <option>Av. 6 de Marzo</option>
+          <option>Ambas</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Correo electrónico</label>
+        <input type="email" id="eu-email" placeholder="correo@ejemplo.com">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Estado</label>
+        <select id="eu-activo"><option value="true">Activo</option><option value="false">Inactivo</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarEdicionUsuario()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== [G] MODAL AGREGAR HISTORIAL ===== -->
+<div class="modal-overlay hidden" id="modal-historial-add">
+  <div class="modal-box" style="width:520px">
+    <div class="modal-header">
+      <h3>Agregar entrada al historial</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>Título *</label><input type="text" id="ha-titulo" placeholder="Ej: Cambio de pantalla completado"></div>
+      <div class="form-group"><label>Cliente</label><input type="text" id="ha-cliente" placeholder="Nombre del cliente"></div>
+      <div class="form-group"><label>Equipo</label><input type="text" id="ha-equipo" placeholder="Marca y modelo"></div>
+      <div class="form-group"><label>Servicio</label><input type="text" id="ha-servicio" placeholder="Tipo de reparación"></div>
+      <div class="form-group"><label>Técnico responsable</label><select id="ha-tech"></select></div>
+      <div class="form-group"><label>Sucursal</label>
+        <select id="ha-branch"><option>Tiwanaku</option><option>Av. 6 de Marzo</option></select>
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Descripción / observaciones</label>
+        <textarea id="ha-desc" placeholder="Detalles del trabajo realizado, estado del equipo, notas técnicas..."></textarea>
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label>Fotografía (antes / durante / después)</label>
+        <div class="historial-upload-zone" onclick="document.getElementById('ha-file-input').click()">
+          <input type="file" id="ha-file-input" accept="image/*" style="position:absolute;opacity:0;inset:0;cursor:pointer" onchange="previewHistorialImg(event)">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px;display:block;color:var(--gray-400)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <div style="font-size:13px;color:var(--gray-500)">Haz clic o arrastra una imagen aquí</div>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:4px">PNG, JPG, WebP — máx 5MB</div>
+        </div>
+        <img id="ha-preview-img" class="historial-upload-preview" alt="preview">
+        <input type="hidden" id="ha-img-data">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarHistorialEntry()">Guardar entrada</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== [H] MODAL QR DETALLE ===== -->
+<div class="modal-overlay hidden" id="modal-qr">
+  <div class="qr-modal-box">
+    <div class="modal-header" style="border:none;padding-bottom:0">
+      <h3>Código QR de seguimiento</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="qr-canvas-wrap">
+      <div id="qr-canvas-container"></div>
+    </div>
+    <div style="font-size:13px;font-weight:600;color:var(--gray-800)" id="qr-entry-title"></div>
+    <div style="font-size:11px;color:var(--gray-400);margin-top:4px" id="qr-entry-sub"></div>
+    <div style="font-size:11px;color:var(--gray-500);margin-top:14px;background:var(--gray-50);border-radius:6px;padding:10px;word-break:break-all" id="qr-entry-data"></div>
+    <div class="modal-footer" style="border:none;justify-content:center;padding-top:14px">
+      <button class="btn-secondary" onclick="closeModal()">Cerrar</button>
+      <button class="btn-primary" onclick="descargarQR()">Descargar QR</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== [I] USER INFO CLICKEABLE (reemplaza el user-info en sidebar-footer) ===== -->
+<!--
+  Reemplaza el bloque:
+    <div class="user-info">
+      <div class="avatar-sm" id="sidebar-avatar">- -</div>
+      <div>...</div>
+    </div>
+  
+  Con:
+    <div class="user-info" onclick="abrirPerfil()" title="Ver/editar mi perfil">
+      <div class="avatar-sm" id="sidebar-avatar" style="overflow:hidden;position:relative">
+        <span id="sidebar-avatar-initials">--</span>
+      </div>
+      <div>
+        <div class="user-name" id="sidebar-name">—</div>
+        <div class="user-role" id="sidebar-role">—</div>
+      </div>
+    </div>
+-->
