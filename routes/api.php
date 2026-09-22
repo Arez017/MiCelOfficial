@@ -3,7 +3,6 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\StockItemController;
 use App\Http\Controllers\ServiceOrderController;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\VentaController;
 use App\Http\Controllers\ReciboController;
@@ -12,10 +11,14 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\CelularInventarioController;
 use App\Http\Controllers\CelularVentaController;
+use App\Http\Controllers\SeguimientoController;
+use Illuminate\Support\Facades\Route;
 
-// Login va SIN middleware — todavía no hay token en este punto
+// ===== PÚBLICO =====
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/seguimiento/{codigo}', [SeguimientoController::class, 'show']);
 
+// ===== PROTEGIDO =====
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
@@ -34,8 +37,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/{order}', [ServiceOrderController::class, 'show']);
     Route::put('/orders/{order}', [ServiceOrderController::class, 'update']);
     Route::patch('/orders/{order}/estado', [ServiceOrderController::class, 'cambiarEstado']);
+    Route::post('/orders/{order}/recibo', [ReciboController::class, 'desdeOrden']);
 
-    // Comisión de técnicos
+    // Reportes
     Route::get('/reportes/tecnicos', [ServiceOrderController::class, 'reportePorTecnico']);
 
     // Clientes
@@ -57,28 +61,26 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/recibos/{recibo}', [ReciboController::class, 'show']);
     Route::put('/recibos/{recibo}', [ReciboController::class, 'update']);
 
-    // Historial de reparaciones
+    // Historial
     Route::get('/historial', [HistorialReparacionController::class, 'index']);
     Route::post('/historial', [HistorialReparacionController::class, 'store']);
     Route::get('/historial/{historial}', [HistorialReparacionController::class, 'show']);
 
-    // Usuarios / Técnicos
+    // Usuarios
     Route::get('/usuarios', [UserController::class, 'index']);
     Route::post('/usuarios', [UserController::class, 'store']);
     Route::put('/usuarios/{user}', [UserController::class, 'update']);
     Route::patch('/usuarios/{user}/activo', [UserController::class, 'toggleActivo']);
 
-    // Perfil (autoedición de cada usuario)
+    // Perfil
     Route::get('/perfil', [ProfileController::class, 'show']);
     Route::put('/perfil', [ProfileController::class, 'update']);
     Route::put('/perfil/password', [ProfileController::class, 'updatePassword']);
     Route::post('/perfil/foto', [ProfileController::class, 'subirFoto']);
 
-    // Venta de celulares — inventario
+    // Celulares
     Route::get('/celulares/inventario', [CelularInventarioController::class, 'index']);
     Route::post('/celulares/inventario', [CelularInventarioController::class, 'store']);
-
-    // Venta de celulares — ventas y cuotas
     Route::get('/celulares/ventas', [CelularVentaController::class, 'index']);
     Route::post('/celulares/ventas', [CelularVentaController::class, 'store']);
     Route::get('/celulares/ventas/{venta}', [CelularVentaController::class, 'show']);

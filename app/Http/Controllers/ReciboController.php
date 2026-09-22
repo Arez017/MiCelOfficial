@@ -48,33 +48,76 @@ class ReciboController extends Controller
     {
         $data = $request->validate([
             'orden_id' => ['nullable', 'exists:service_orders,id'],
-            'cliente' => ['required', 'string', 'max:255'],
+            'cliente' => ['nullable', 'string', 'max:255'],
             'telefono' => ['nullable', 'string', 'max:30'],
-            'equipo' => ['required', 'string', 'max:255'],
-            'servicio' => ['required', 'string', 'max:255'],
-            'monto' => ['required', 'numeric', 'min:0'],
+            'equipo' => ['nullable', 'string', 'max:255'],
+            'servicio' => ['nullable', 'string', 'max:255'],
+            'monto' => ['nullable', 'numeric', 'min:0'],
             'pago' => ['required', 'string', 'max:50'],
             'sucursal' => ['nullable', 'string', 'max:100'],
             'obs' => ['nullable', 'string'],
             'tipo' => ['nullable', 'string', 'max:50'],
+            'marcar_listo' => ['nullable', 'boolean'],
         ]);
 
         $user = $request->user();
-        $data['tecnico_id'] = $user->id;
+        $orden = null;
+
+        if (! empty($data['orden_id'])) {
+            $orden = ServiceOrder::findOrFail($data['orden_id']);
+
+            $existe = Recibo::where('orden_id', $orden->id)->first();
+            if ($existe) {
+                return response()->json([
+                    'message' => 'Esta orden ya tiene un recibo emitido.',
+                    'recibo' => $existe->load(['orden', 'tecnico']),
+                ], 422);
+            }
+
+            $data['cliente'] = $data['cliente'] ?? $orden->client;
+            $data['telefono'] = $data['telefono'] ?? $orden->phone;
+            $data['equipo'] = $data['equipo'] ?? $orden->device;
+            $data['servicio'] = $data['servicio'] ?? $orden->service;
+            $data['monto'] = $data['monto'] ?? $orden->monto;
+            $data['sucursal'] = $data['sucursal'] ?? $orden->branch;
+
+            if ((float) $data['monto'] <= 0) {
+                return response()->json([
+                    'message' => 'La orden no tiene monto. Asigna el precio antes de emitir el recibo.',
+                ], 422);
+            }
+        }
+
+        if (empty($data['cliente']) || empty($data['equipo']) || empty($data['servicio'])) {
+            return response()->json([
+                'message' => 'Faltan cliente, equipo o servicio.',
+            ], 422);
+        }
+
+        if (! isset($data['monto']) || (float) $data['monto'] < 0) {
+            return response()->json(['message' => 'Monto inválido.'], 422);
+        }
+
+        $data['tecnico_id'] = $user->esTecnico()
+            ? $user->id
+            : ($orden?->tecnico_id ?? $user->id);
+
         $data['num_recibo'] = $this->siguienteNumero();
         $data['hora'] = now()->format('H:i');
         $data['fecha'] = now()->toDateString();
-
-        // Si viene de una orden, la marca como pagada automáticamente
-        if (! empty($data['orden_id'])) {
-            ServiceOrder::where('id', $data['orden_id'])->update(['status' => 'listo']);
-        }
+        $data['tipo'] = $data['tipo'] ?? 'Recibo de servicio técnico';
+        $data['obs'] = $data['obs']
+            ?? ($orden?->obs ?: 'Garantía de 30 días por el servicio realizado.');
 
         $recibo = Recibo::create($data);
 
+        $marcarListo = $data['marcar_listo'] ?? true;
+        if ($orden && $marcarListo) {
+            $orden->update(['status' => 'listo']);
+        }
+
         return response()->json($recibo->load(['orden', 'tecnico']), 201);
     }
-
     /**
      * PUT /api/recibos/{recibo}
      * Reemplaza guardarEdicionRecibo().
@@ -98,7 +141,21 @@ class ReciboController extends Controller
 
         return response()->json($recibo->load(['orden', 'tecnico']));
     }
+    /**
+ * POST /api/orders/{order}/recibo
+ * Body opcional: { "pago": "Efectivo", "obs": "..." }
+ */
+    public function desdeOrden(Request $request, ServiceOrder $order)
+    {
+        $request->merge(['orden_id' => $order->id]);
 
+        if (! $request->filled('pago')) {
+            $request->merge(['pago' => 'Efectivo']);
+        }
+
+        return $this->store($request);
+    }
+    
     // ===== Helpers =====
 
     private function assertPuedeVer(Request $request, Recibo $recibo): void
@@ -108,10 +165,11 @@ class ReciboController extends Controller
             abort(403, 'No puedes ver recibos de otro técnico.');
         }
     }
-
     private function siguienteNumero(): string
     {
         $ultimo = Recibo::orderByDesc('id')->value('id') ?? 0;
+
         return 'REC-' . str_pad((string) ($ultimo + 1), 4, '0', STR_PAD_LEFT);
     }
+
 }

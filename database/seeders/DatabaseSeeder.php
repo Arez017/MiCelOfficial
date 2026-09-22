@@ -9,10 +9,10 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            UserSeeder::class,         // primero: todo depende de users (tecnico_id FKs)
+            UserSeeder::class,
             StockItemSeeder::class,
             ClienteSeeder::class,
-            ServiceOrderSeeder::class, // depende de UserSeeder
+            ServiceOrderSeeder::class,
         ]);
     }
 }

@@ -6,6 +6,8 @@ use App\Models\ServiceOrder;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Models\Cliente;
+
 
 class ServiceOrderController extends Controller
 {
@@ -82,6 +84,13 @@ class ServiceOrderController extends Controller
         $data['monto'] = $data['monto'] ?? 0;
 
         $orden = ServiceOrder::create($data);
+
+        // Cliente real: crear o actualizar visitas
+        $this->asegurarCliente(
+            $data['client'],
+            $data['phone'] ?? null,
+            $data['branch'] ?? null
+        );
 
         return response()->json($this->formatOrder($orden->load('tecnico')), 201);
     }
@@ -210,8 +219,42 @@ class ServiceOrderController extends Controller
     }
 
     private function siguienteCodigo(): string
+        {
+            $ultimoId = ServiceOrder::orderByDesc('id')->value('id') ?? 0;
+            $numero = $ultimoId + 1;
+
+            return '#OS-' . str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
+        }
+
+    private function asegurarCliente(string $name, ?string $phone, ?string $branch): void
     {
-        $ultimo = ServiceOrder::orderByDesc('id')->value('id') ?? 40;
-        return '#OS-00' . ($ultimo + 1);
+        if (! $phone) {
+            return;
+        }
+
+        $cliente = Cliente::where('phone', $phone)->first();
+
+        if ($cliente) {
+            $cliente->update([
+                'name' => $name,
+                'branch' => $branch ?? $cliente->branch,
+                'visits' => $cliente->visits + 1,
+                'last_visit' => now()->toDateString(),
+            ]);
+
+            return;
+        }
+
+        $ultimo = Cliente::orderByDesc('id')->value('id') ?? 0;
+        $code = 'CLI-' . str_pad((string) ($ultimo + 1), 3, '0', STR_PAD_LEFT);
+
+        Cliente::create([
+            'code' => $code,
+            'name' => $name,
+            'phone' => $phone,
+            'branch' => $branch,
+            'visits' => 1,
+            'last_visit' => now()->toDateString(),
+        ]);
     }
 }
