@@ -1,139 +1,218 @@
 // ==========================================
-// API.JS — Conexión con el backend Laravel (Postgres)
-// Pegar ANTES de app.js en tu index.html:
-// <script src="js/api.js"></script>
-// <script src="js/app.js"></script>
+// API.JS — Cliente HTTP para MiCelOfficial
 // ==========================================
 
-const API_BASE = 'http://micel.test/api'; // cambia esto si tu Herd usa otro dominio/puerto
+// ⚠️ CAMBIA ESTA URL según tu entorno
+const API_BASE = 'http://micel.test/api';
+// Ejemplos:
+// const API_BASE = 'http://micelofficial.test/api';
+// const API_BASE = 'https://tu-dominio.com/api';
 
-// ===== Manejo del token (persiste al recargar la página) =====
+const TOKEN_KEY = 'micel_token';
+const USER_KEY  = 'micel_user';
+
 function getToken() {
-  return localStorage.getItem('micel_token');
-}
-function setToken(token) {
-  localStorage.setItem('micel_token', token);
-}
-function clearToken() {
-  localStorage.removeItem('micel_token');
-  localStorage.removeItem('micel_user');
+  return localStorage.getItem(TOKEN_KEY);
 }
 
-// ===== Fetch autenticado genérico =====
-async function apiFetch(path, options = {}) {
-  const token = getToken();
+function setSession(token, user) {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
 
-  // FIX 1: Si no hay token y la ruta no es el login, cancelamos la petición inmediatamente
-  if (!token && path !== '/login') {
+function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+function getStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem(USER_KEY) || 'null');
+  } catch {
     return null;
   }
+}
 
-  const headers = { 'Accept': 'application/json', ...(options.headers || {}) };
+/** Mapea rol del backend al texto que usa el UI */
+function mapRol(rol) {
+  const m = {
+    superadmin: 'Super Admin',
+    administrador: 'Administrador',
+    tecnico: 'Técnico',
+  };
+  return m[rol] || rol;
+}
+
+/** Mapea status backend → etiqueta UI */
+function mapStatusLabel(status) {
+  const m = {
+    recepcion: 'Recepción',
+    diagnostico: 'Diagnóstico',
+    en_proceso: 'En proceso',
+    listo: 'Listo',
+  };
+  return m[status] || status;
+}
+
+/** Mapea etiqueta UI → status backend */
+function mapStatusToApi(label) {
+  const m = {
+    'Recepción': 'recepcion',
+    'Diagnóstico': 'diagnostico',
+    'En proceso': 'en_proceso',
+    'Listo': 'listo',
+  };
+  return m[label] || label;
+}
+
+async function api(path, options = {}) {
+  const headers = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  const token = getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  // No forzar Content-Type si el body es FormData (ej. subir fotos)
-  if (options.body && !(options.body instanceof FormData) && typeof options.body !== 'string') {
-    options.body = JSON.stringify(options.body);
-  }
-  if (options.body && !(options.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
-  }
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-
-  // FIX 2: Si Laravel devuelve 401 (no autorizado), limpiamos el token y cancelamos
+  // Sesión inválida
   if (res.status === 401) {
-    clearToken();
-    return null;
+    clearSession();
+    window.location.reload();
+    throw new Error('Sesión expirada. Vuelve a iniciar sesión.');
   }
 
-  if (res.status === 204) return null;
-
-  const data = await res.json().catch(() => ({}));
+  let data = null;
+  const text = await res.text();
+  if (text) {
+    try { data = JSON.parse(text); } catch { data = text; }
+  }
 
   if (!res.ok) {
-    // Laravel manda los errores de validación en data.errors o data.message
-    const mensaje = data.message || (data.errors ? Object.values(data.errors).flat().join(', ') : 'Error en el servidor');
-    throw new Error(mensaje);
+    const msg =
+      (data && (data.message || data.error)) ||
+      (data && data.errors && Object.values(data.errors).flat().join('\n')) ||
+      `Error ${res.status}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.data = data;
+    throw err;
   }
 
   return data;
 }
 
-// ===== AUTH =====
-async function apiLogin(username, password) {
-  const data = await apiFetch('/login', { method: 'POST', body: { username, password } });
-  if (data && data.token) {
-    setToken(data.token);
-    localStorage.setItem('micel_user', JSON.stringify(data.user));
-    return data.user;
-  }
-  throw new Error('No se pudo iniciar sesión');
-}
-
-async function apiLogout() {
-  try { await apiFetch('/logout', { method: 'POST' }); } catch (e) { /* no pasa nada si ya expiró */ }
-  clearToken();
-}
-
-function getUsuarioGuardado() {
-  const raw = localStorage.getItem('micel_user');
-  return raw ? JSON.parse(raw) : null;
-}
-
-// ===== STOCK =====
-const apiGetStock       = () => apiFetch('/stock');
-const apiAjustarStock   = (id, operacion, cantidad) => apiFetch(`/stock/${id}/ajuste`, { method: 'PATCH', body: { operacion, cantidad } });
-const apiCrearRepuesto  = (payload) => apiFetch('/stock', { method: 'POST', body: payload });
-const apiEditarRepuesto = (id, payload) => apiFetch(`/stock/${id}`, { method: 'PUT', body: payload });
-
-// ===== ÓRDENES =====
-const apiGetOrders        = () => apiFetch('/orders');
-const apiCrearOrden       = (payload) => apiFetch('/orders', { method: 'POST', body: payload });
-const apiEditarOrden      = (id, payload) => apiFetch(`/orders/${id}`, { method: 'PUT', body: payload });
-const apiCambiarEstado    = (id, status) => apiFetch(`/orders/${id}/estado`, { method: 'PATCH', body: { status } });
-const apiGetReporteTecnicos = () => apiFetch('/reportes/tecnicos');
-
-// ===== CLIENTES =====
-const apiGetClientes     = () => apiFetch('/clientes');
-const apiCrearCliente    = (payload) => apiFetch('/clientes', { method: 'POST', body: payload });
-
-// ===== VENTAS =====
-const apiGetVentas = (opts = {}) => {
-  const params = new URLSearchParams();
-  if (opts.all) params.set('all', '1');
-  if (opts.fecha) params.set('fecha', opts.fecha);
-  const qs = params.toString();
-  return apiFetch(qs ? `/ventas?${qs}` : '/ventas');
+// ---------- Auth ----------
+const AuthAPI = {
+  login: (username, password) =>
+    api('/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+  logout: () => api('/logout', { method: 'POST' }),
+  me: () => api('/me'),
 };
-const apiCrearVenta      = (payload) => apiFetch('/ventas', { method: 'POST', body: payload });
-const apiResumenVentas   = () => apiFetch('/ventas/resumen');
 
-// ===== USUARIOS / TÉCNICOS =====
-const apiGetUsuarios     = () => apiFetch('/usuarios');
-const apiCrearUsuario    = (payload) => apiFetch('/usuarios', { method: 'POST', body: payload });
-const apiEditarUsuario   = (id, payload) => apiFetch(`/usuarios/${id}`, { method: 'PUT', body: payload });
-const apiToggleActivoUsuario = (id) => apiFetch(`/usuarios/${id}/activo`, { method: 'PATCH' });
+// ---------- Órdenes ----------
+const OrdersAPI = {
+  list: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return api('/orders' + (q ? `?${q}` : ''));
+  },
+  get: (id) => api(`/orders/${id}`),
+  create: (body) => api('/orders', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/orders/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  cambiarEstado: (id, status) =>
+    api(`/orders/${id}/estado`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+  crearRecibo: (id, body = {}) =>
+    api(`/orders/${id}/recibo`, { method: 'POST', body: JSON.stringify(body) }),
+  reporteTecnicos: () => api('/reportes/tecnicos'),
+};
 
-// ===== RECIBOS =====
-const apiGetRecibos      = () => apiFetch('/recibos');
-const apiCrearRecibo     = (payload) => apiFetch('/recibos', { method: 'POST', body: payload });
-const apiEditarRecibo    = (id, payload) => apiFetch(`/recibos/${id}`, { method: 'PUT', body: payload });
+// ---------- Stock ----------
+const StockAPI = {
+  list: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return api('/stock' + (q ? `?${q}` : ''));
+  },
+  create: (body) => api('/stock', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/stock/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  ajustar: (id, operacion, cantidad) =>
+    api(`/stock/${id}/ajuste`, {
+      method: 'PATCH',
+      body: JSON.stringify({ operacion, cantidad }),
+    }),
+  destroy: (id) => api(`/stock/${id}`, { method: 'DELETE' }),
+};
 
-// ===== HISTORIAL =====
-const apiGetHistorial    = () => apiFetch('/historial');
-async function apiCrearHistorial(equipo, descripcion, fotoFile) {
-  const form = new FormData();
-  form.append('equipo', equipo);
-  if (descripcion) form.append('descripcion', descripcion);
-  if (fotoFile) form.append('foto', fotoFile);
-  return apiFetch('/historial', { method: 'POST', body: form });
-}
+// ---------- Clientes ----------
+const ClientesAPI = {
+  list: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return api('/clientes' + (q ? `?${q}` : ''));
+  },
+  create: (body) => api('/clientes', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/clientes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  destroy: (id) => api(`/clientes/${id}`, { method: 'DELETE' }),
+};
 
-// ===== Mapeo de estados =====
-const STATUS_LABEL_TO_VALUE = {
-  'Recepción': 'recepcion',
-  'Diagnóstico': 'diagnostico',
-  'En proceso': 'en_proceso',
-  'Listo': 'listo',
+// ---------- Ventas (servicios / mostrador) ----------
+const VentasAPI = {
+  list: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return api('/ventas' + (q ? `?${q}` : ''));
+  },
+  create: (body) => api('/ventas', { method: 'POST', body: JSON.stringify(body) }),
+  resumenHoy: () => api('/ventas/resumen'),
+};
+
+// ---------- Recibos ----------
+const RecibosAPI = {
+  list: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return api('/recibos' + (q ? `?${q}` : ''));
+  },
+  create: (body) => api('/recibos', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/recibos/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+};
+
+// ---------- Usuarios ----------
+const UsuariosAPI = {
+  list: () => api('/usuarios'),
+  create: (body) => api('/usuarios', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  toggleActivo: (id) => api(`/usuarios/${id}/activo`, { method: 'PATCH' }),
+};
+
+// ---------- Celulares ----------
+const CelularesAPI = {
+  inventario: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return api('/celulares/inventario' + (q ? `?${q}` : ''));
+  },
+  agregarInventario: (body) =>
+    api('/celulares/inventario', { method: 'POST', body: JSON.stringify(body) }),
+  ventas: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return api('/celulares/ventas' + (q ? `?${q}` : ''));
+  },
+  vender: (body) =>
+    api('/celulares/ventas', { method: 'POST', body: JSON.stringify(body) }),
+  resumen: () => api('/celulares/resumen'),
+  estadoCuenta: (q) => api('/celulares/estado-cuenta?q=' + encodeURIComponent(q)),
+  pagarCuota: (cuotaId) =>
+    api(`/cuotas/${cuotaId}/pagar`, { method: 'PATCH' }),
+};
+
+// ---------- Seguimiento público ----------
+const SeguimientoAPI = {
+  get: (codigo) => api(`/seguimiento/${encodeURIComponent(codigo)}`),
 };

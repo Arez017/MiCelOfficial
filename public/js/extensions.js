@@ -7,18 +7,39 @@
 // El super admin es 'arez' — puede modificar TODO
 const SUPER_ADMIN_USER = 'arez';
 
+// Compat: extensions.js antiguo esperaba "usuarios"
+function getUsuariosCompat() {
+  if (typeof tecnicos !== 'undefined' && Array.isArray(tecnicos)) {
+    return tecnicos.map(t => ({
+      user: t.user || t.username,
+      pass: '',
+      techCode: t.code,
+      name: t.name,
+      rol: t.rol,
+    }));
+  }
+  return [];
+}
+// Alias para código viejo que aún diga "usuarios"
+var usuarios = typeof usuarios !== 'undefined' ? usuarios : [];
 // ===== PERFILES EXTENDIDOS =====
 // Extiende el array 'usuarios' de app.js con datos extra
 let perfilesExtra = {};
 // Inicializar perfiles extra para todos los usuarios
 function initPerfiles() {
-  usuarios.forEach(u => {
-    if (!perfilesExtra[u.user]) {
-      perfilesExtra[u.user] = {
-        email: '',
-        telefono: '',
-        foto: null, // base64
-        isSuperAdmin: u.user === SUPER_ADMIN_USER,
+  const lista = (typeof tecnicos !== 'undefined' && tecnicos.length)
+    ? tecnicos
+    : [];
+
+  lista.forEach(u => {
+    const key = u.user || u.username || u.code;
+    if (!key) return;
+    if (!perfilesExtra[key]) {
+      perfilesExtra[key] = {
+        email: u.email || '',
+        telefono: u.telefono || '',
+        foto: null,
+        isSuperAdmin: key === SUPER_ADMIN_USER || u.rol === 'Super Admin' || u.rolRaw === 'superadmin',
       };
     }
   });
