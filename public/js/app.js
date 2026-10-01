@@ -16,6 +16,30 @@ let stockEditingId = null;
 let toastStockCerrado = false;
 let toastStockUltimoMensaje = '';
 
+
+async function initApp() {
+  await loadUsuarios();
+
+  window.usuarios = (tecnicos || []).map(t => ({
+    user: t.user || t.username,
+    pass: '',
+    techCode: t.code,
+    name: t.name,
+    rol: t.rol,
+  }));
+
+  await Promise.all([
+    loadOrders(),
+    loadStock(),
+    loadClientes(),
+    loadVentas(),
+    loadRecibos(),
+    loadCelulares(),
+    loadReporteTecnicos(),
+  ]);
+
+  populateTechSelects();
+}
 // ---------- Login / sesión ----------
 async function doLogin() {
   const user = document.getElementById('login-user').value.trim();
