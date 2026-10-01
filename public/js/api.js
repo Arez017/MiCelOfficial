@@ -4,7 +4,6 @@
 
 // ⚠️ CAMBIA ESTA URL según tu entorno
 const API_BASE = 'http://micel.test/api';
-// Ejemplos:
 // const API_BASE = 'http://micelofficial.test/api';
 // const API_BASE = 'https://tu-dominio.com/api';
 
@@ -33,7 +32,6 @@ function getStoredUser() {
   }
 }
 
-/** Mapea rol del backend al texto que usa el UI */
 function mapRol(rol) {
   const m = {
     superadmin: 'Super Admin',
@@ -43,7 +41,6 @@ function mapRol(rol) {
   return m[rol] || rol;
 }
 
-/** Mapea status backend → etiqueta UI */
 function mapStatusLabel(status) {
   const m = {
     recepcion: 'Recepción',
@@ -54,7 +51,6 @@ function mapStatusLabel(status) {
   return m[status] || status;
 }
 
-/** Mapea etiqueta UI → status backend */
 function mapStatusToApi(label) {
   const m = {
     'Recepción': 'recepcion',
@@ -80,7 +76,6 @@ async function api(path, options = {}) {
     headers,
   });
 
-  // Sesión inválida
   if (res.status === 401) {
     clearSession();
     window.location.reload();
@@ -107,18 +102,13 @@ async function api(path, options = {}) {
   return data;
 }
 
-// ---------- Auth ----------
 const AuthAPI = {
   login: (username, password) =>
-    api('/login', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    }),
+    api('/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   logout: () => api('/logout', { method: 'POST' }),
   me: () => api('/me'),
 };
 
-// ---------- Órdenes ----------
 const OrdersAPI = {
   list: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -128,16 +118,12 @@ const OrdersAPI = {
   create: (body) => api('/orders', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/orders/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   cambiarEstado: (id, status) =>
-    api(`/orders/${id}/estado`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    }),
+    api(`/orders/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   crearRecibo: (id, body = {}) =>
     api(`/orders/${id}/recibo`, { method: 'POST', body: JSON.stringify(body) }),
   reporteTecnicos: () => api('/reportes/tecnicos'),
 };
 
-// ---------- Stock ----------
 const StockAPI = {
   list: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -146,14 +132,10 @@ const StockAPI = {
   create: (body) => api('/stock', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/stock/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   ajustar: (id, operacion, cantidad) =>
-    api(`/stock/${id}/ajuste`, {
-      method: 'PATCH',
-      body: JSON.stringify({ operacion, cantidad }),
-    }),
+    api(`/stock/${id}/ajuste`, { method: 'PATCH', body: JSON.stringify({ operacion, cantidad }) }),
   destroy: (id) => api(`/stock/${id}`, { method: 'DELETE' }),
 };
 
-// ---------- Clientes ----------
 const ClientesAPI = {
   list: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -164,7 +146,6 @@ const ClientesAPI = {
   destroy: (id) => api(`/clientes/${id}`, { method: 'DELETE' }),
 };
 
-// ---------- Ventas (servicios / mostrador) ----------
 const VentasAPI = {
   list: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -174,7 +155,6 @@ const VentasAPI = {
   resumenHoy: () => api('/ventas/resumen'),
 };
 
-// ---------- Recibos ----------
 const RecibosAPI = {
   list: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -184,7 +164,6 @@ const RecibosAPI = {
   update: (id, body) => api(`/recibos/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
 };
 
-// ---------- Usuarios ----------
 const UsuariosAPI = {
   list: () => api('/usuarios'),
   create: (body) => api('/usuarios', { method: 'POST', body: JSON.stringify(body) }),
@@ -192,7 +171,6 @@ const UsuariosAPI = {
   toggleActivo: (id) => api(`/usuarios/${id}/activo`, { method: 'PATCH' }),
 };
 
-// ---------- Celulares ----------
 const CelularesAPI = {
   inventario: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -212,7 +190,6 @@ const CelularesAPI = {
     api(`/cuotas/${cuotaId}/pagar`, { method: 'PATCH' }),
 };
 
-// ---------- Seguimiento público ----------
 const SeguimientoAPI = {
   get: (codigo) => api(`/seguimiento/${encodeURIComponent(codigo)}`),
 };

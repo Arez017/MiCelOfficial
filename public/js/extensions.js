@@ -7,9 +7,10 @@
 // El super admin es 'arez' — puede modificar TODO
 const SUPER_ADMIN_USER = 'arez';
 
-// Compat: extensions.js antiguo esperaba "usuarios"
-function getUsuariosCompat() {
-  if (typeof tecnicos !== 'undefined' && Array.isArray(tecnicos)) {
+// ===== Compat API: lista de usuarios (antes venía de data.js) =====
+function getUsuariosList() {
+  if (window.usuarios && window.usuarios.length) return window.usuarios;
+  if (typeof tecnicos !== 'undefined' && tecnicos && tecnicos.length) {
     return tecnicos.map(t => ({
       user: t.user || t.username,
       pass: '',
@@ -20,18 +21,12 @@ function getUsuariosCompat() {
   }
   return [];
 }
-// Alias para código viejo que aún diga "usuarios"
-var usuarios = typeof usuarios !== 'undefined' ? usuarios : [];
-// ===== PERFILES EXTENDIDOS =====
-// Extiende el array 'usuarios' de app.js con datos extra
-let perfilesExtra = {};
-// Inicializar perfiles extra para todos los usuarios
-function initPerfiles() {
-  const lista = (typeof tecnicos !== 'undefined' && tecnicos.length)
-    ? tecnicos
-    : [];
 
-  lista.forEach(u => {
+// ===== PERFILES EXTENDIDOS =====
+let perfilesExtra = {};
+
+function initPerfiles() {
+  getUsuariosList().forEach(u => {
     const key = u.user || u.username || u.code;
     if (!key) return;
     if (!perfilesExtra[key]) {
@@ -39,7 +34,7 @@ function initPerfiles() {
         email: u.email || '',
         telefono: u.telefono || '',
         foto: null,
-        isSuperAdmin: key === SUPER_ADMIN_USER || u.rol === 'Super Admin' || u.rolRaw === 'superadmin',
+        isSuperAdmin: key === SUPER_ADMIN_USER,
       };
     }
   });
@@ -47,28 +42,21 @@ function initPerfiles() {
 
 // ===== INIT EXTENDIDO =====
 // Se llama DESPUÉS de initApp()
-async function initApp() {
-  await loadUsuarios();
-
-  window.usuarios = (tecnicos || []).map(t => ({
-    user: t.user || t.username,
-    pass: '',
-    techCode: t.code,
-    name: t.name,
-    rol: t.rol,
-  }));
-
-  await Promise.all([
-    loadOrders(),
-    loadStock(),
-    loadClientes(),
-    loadVentas(),
-    loadRecibos(),
-    loadCelulares(),
-    loadReporteTecnicos(),
-  ]);
-
-  populateTechSelects();
+function initExtensions() {
+  initPerfiles();
+  extendNavConfig();
+  extendSidebarFooter();
+  extendUsuariosPanel();
+  renderHistorial();
+  initStockModal();
+  // Poblar select de técnicos en el form historial
+  const haTech = document.getElementById('ha-tech');
+  if (haTech) {
+    haTech.innerHTML = tecnicos.filter(t=>t.active)
+      .map(t=>`<option value="${t.code}">${t.code} — ${t.name}</option>`).join('');
+  }
+  // Visibilidad nav
+  adjustNavForRole();
 }
 
 // ===== EXTENDER NAV CONFIG =====
@@ -284,17 +272,18 @@ function guardarPerfil() {
     alert('Las contraseñas no coinciden.'); return;
   }
 
-  // Actualizar nombre en array usuarios
-  const uIdx = usuarios.findIndex(u => u.user === currentUser.user);
+  // Actualizar nombre en lista en memoria
+  if (!window.usuarios) window.usuarios = getUsuariosList();
+  const uIdx = window.usuarios.findIndex(u => u.user === currentUser.user);
   if (uIdx >= 0) {
-    usuarios[uIdx].name = nombre;
-    if (passNew) usuarios[uIdx].pass = passNew;
+    window.usuarios[uIdx].name = nombre;
+    if (passNew) window.usuarios[uIdx].pass = passNew;
     // SuperAdmin puede cambiar username y rol
     if (isSA) {
       const newUser = document.getElementById('perfil-sa-username')?.value.trim();
       const newRol  = document.getElementById('perfil-sa-rol')?.value;
-      if (newUser) usuarios[uIdx].user = newUser;
-      if (newRol)  usuarios[uIdx].rol  = newRol;
+      if (newUser) window.usuarios[uIdx].user = newUser;
+      if (newRol)  window.usuarios[uIdx].rol  = newRol;
     }
   }
   // Actualizar en tecnicos
@@ -333,14 +322,14 @@ function guardarNuevoUsuario() {
   const activo = document.getElementById('nu-activo').value === 'true';
 
   if (!nombre || !user || !pass) { alert('Complete: Nombre, Usuario y Contraseña.'); return; }
-  if (usuarios.find(u => u.user === user)) { alert('Ese nombre de usuario ya existe.'); return; }
+  if (getUsuariosList().find(u => u.user === user)) { alert('Ese nombre de usuario ya existe.'); return; }
 
   const newCode = `TEC-${String(tecnicos.length + 1).padStart(2,'0')}`;
   const nuevoTec = { code: newCode, name: nombre, user, rol, branch, active: activo };
   const nuevoUser = { user, pass, techCode: newCode, name: nombre, rol };
 
   tecnicos.push(nuevoTec);
-  usuarios.push(nuevoUser);
+  if (!window.usuarios) window.usuarios = getUsuariosList(); window.usuarios.push(nuevoUser);
   perfilesExtra[user] = { email, telefono: '', foto: null, isSuperAdmin: false };
 
   populateTechSelects();
@@ -352,7 +341,7 @@ function guardarNuevoUsuario() {
 // ===== EDITAR USUARIO (superadmin) =====
 function abrirEditarUsuario(userLogin) {
   const tec  = tecnicos.find(t => t.user === userLogin);
-  const usr  = usuarios.find(u => u.user === userLogin);
+  const usr  = getUsuariosList().find(u => u.user === userLogin);
   const extra = perfilesExtra[userLogin] || {};
   if (!tec || !usr) return;
 
@@ -380,7 +369,7 @@ function guardarEdicionUsuario() {
   const activo     = document.getElementById('eu-activo').value === 'true';
 
   const tIdx = tecnicos.findIndex(t => t.user === userLogin);
-  const uIdx = usuarios.findIndex(u => u.user === userLogin);
+  const uIdx = getUsuariosList().findIndex(u => u.user === userLogin);
   if (tIdx < 0 || uIdx < 0) return;
 
   tecnicos[tIdx].name   = nombre;
@@ -389,10 +378,10 @@ function guardarEdicionUsuario() {
   tecnicos[tIdx].branch = branch;
   tecnicos[tIdx].active = activo;
 
-  usuarios[uIdx].name   = nombre;
-  usuarios[uIdx].user   = newUser;
-  usuarios[uIdx].rol    = rol;
-  if (pass) usuarios[uIdx].pass = pass;
+  window.usuarios[uIdx].name   = nombre;
+  window.usuarios[uIdx].user   = newUser;
+  window.usuarios[uIdx].rol    = rol;
+  if (pass) window.usuarios[uIdx].pass = pass;
 
   if (!perfilesExtra[userLogin]) perfilesExtra[userLogin] = {};
   perfilesExtra[newUser] = { ...perfilesExtra[userLogin], email };
@@ -851,9 +840,18 @@ function showToast(msg, type = 'success') {
 }
 
 // ===== HOOK INTO initApp =====
-// Interceptar la llamada original para agregar initExtensions al final
+// Espera a que termine el initApp async (carga API) y luego extiende la UI
 const _origInitApp = window.initApp;
-window.initApp = function() {
-  _origInitApp();
-  setTimeout(initExtensions, 0);
+window.initApp = async function() {
+  if (typeof _origInitApp === 'function') {
+    await _origInitApp();
+  }
+  if (!window.usuarios || !window.usuarios.length) {
+    window.usuarios = getUsuariosList();
+  }
+  try {
+    initExtensions();
+  } catch (e) {
+    console.warn('initExtensions:', e);
+  }
 };
