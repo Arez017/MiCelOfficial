@@ -47,21 +47,28 @@ function initPerfiles() {
 
 // ===== INIT EXTENDIDO =====
 // Se llama DESPUÉS de initApp()
-function initExtensions() {
-  initPerfiles();
-  extendNavConfig();
-  extendSidebarFooter();
-  extendUsuariosPanel();
-  renderHistorial();
-  initStockModal();
-  // Poblar select de técnicos en el form historial
-  const haTech = document.getElementById('ha-tech');
-  if (haTech) {
-    haTech.innerHTML = tecnicos.filter(t=>t.active)
-      .map(t=>`<option value="${t.code}">${t.code} — ${t.name}</option>`).join('');
-  }
-  // Visibilidad nav
-  adjustNavForRole();
+async function initApp() {
+  await loadUsuarios();
+
+  window.usuarios = (tecnicos || []).map(t => ({
+    user: t.user || t.username,
+    pass: '',
+    techCode: t.code,
+    name: t.name,
+    rol: t.rol,
+  }));
+
+  await Promise.all([
+    loadOrders(),
+    loadStock(),
+    loadClientes(),
+    loadVentas(),
+    loadRecibos(),
+    loadCelulares(),
+    loadReporteTecnicos(),
+  ]);
+
+  populateTechSelects();
 }
 
 // ===== EXTENDER NAV CONFIG =====
