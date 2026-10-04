@@ -833,5 +833,6 @@ async function tryRestoreSession() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  tryRestoreSession();
+  // Política estricta: cada recarga pide login de nuevo
+  clearSession();
 });

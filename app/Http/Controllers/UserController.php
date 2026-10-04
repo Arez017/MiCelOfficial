@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -17,13 +18,13 @@ class UserController extends Controller
     public function index()
     {
         return response()->json(
-            User::orderBy('code')->get()->map(fn ($u) => $this->formatUser($u))
+            User::with('sucursal')->orderBy('code')->get()->map(fn ($u) => $this->formatUser($u))
         );
     }
 
     /**
      * POST /api/usuarios
-     * Crea un técnico/administrador nuevo. Solo Admin/SuperAdmin.
+     * Crea un técnico/administrador nuevo. Admin y SuperAdmin pueden crear.
      */
     public function store(Request $request)
     {
@@ -35,7 +36,7 @@ class UserController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:4'],
             'rol' => ['required', 'in:administrador,tecnico'], // superadmin no se crea desde aquí
-            'branch' => ['nullable', 'string', 'max:100'],
+            'sucursal_id' => ['nullable', 'exists:sucursales,id'],
         ]);
 
         $user = User::create([
@@ -45,7 +46,7 @@ class UserController extends Controller
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
             'rol' => $data['rol'],
-            'branch' => $data['branch'] ?? null,
+            'sucursal_id' => $data['sucursal_id'] ?? null,
             'active' => true,
         ]);
 
@@ -55,11 +56,14 @@ class UserController extends Controller
     /**
      * PATCH /api/usuarios/{user}/activo
      * Activa o desactiva un usuario (en vez de borrarlo — así no se pierden
-     * sus órdenes/ventas/comisiones históricas). Solo Admin/SuperAdmin.
+     * sus órdenes/ventas/comisiones históricas).
+     *
+     * Igual que editar: SOLO SuperAdmin. Un Administrador puede CREAR gente
+     * nueva, pero no desactivar cuentas ya existentes (ni siquiera técnicos).
      */
     public function toggleActivo(Request $request, User $user)
     {
-        $this->assertEsAdmin($request);
+        $this->assertEsSuperAdmin($request);
 
         if ($user->id === $request->user()->id) {
             return response()->json(['message' => 'No puedes desactivar tu propia cuenta.'], 422);
@@ -78,17 +82,36 @@ class UserController extends Controller
 
     /**
      * PUT /api/usuarios/{user}
-     * Edita rol/sucursal de otro usuario. Solo Admin/SuperAdmin.
-     * (Para que cada quien edite SU PROPIO nombre/correo/teléfono, usa /api/perfil.)
+     * Edita los datos de otro usuario: nombre, username, correo, rol,
+     * sucursal y (opcionalmente) resetea su contraseña.
+     *
+     * SOLO SuperAdmin — ni siquiera un Administrador puede tocar esto.
+     * Esto es justamente lo que permite recuperar a alguien que olvidó su
+     * contraseña (cosa que antes nadie podía hacer, porque /perfil/password
+     * exige la contraseña ACTUAL).
+     *
+     * El campo "password" es opcional: si no lo mandas, no se toca.
      */
     public function update(Request $request, User $user)
     {
-        $this->assertEsAdmin($request);
+        $this->assertEsSuperAdmin($request);
 
         $data = $request->validate([
+            'name' => ['sometimes', 'string', 'max:255'],
+            'username' => ['sometimes', 'string', 'max:50', Rule::unique('users', 'username')->ignore($user->id)],
+            'email' => ['sometimes', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'password' => ['sometimes', 'nullable', 'string', 'min:4'],
             'rol' => ['sometimes', 'in:administrador,tecnico'],
-            'branch' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'sucursal_id' => ['sometimes', 'nullable', 'exists:sucursales,id'],
         ]);
+
+        if (! empty($data['password'])) {
+            $data['password'] = Hash::make($data['password']);
+            // Si le resetean la contraseña, se le cierra la sesión actual por seguridad.
+            $user->tokens()->delete();
+        } else {
+            unset($data['password']);
+        }
 
         $user->update($data);
 
@@ -97,10 +120,19 @@ class UserController extends Controller
 
     // ===== Helpers =====
 
+    /** Admin o SuperAdmin: puede ver y CREAR usuarios. */
     private function assertEsAdmin(Request $request): void
     {
         if (! $request->user()->esAdministrador()) {
             abort(403, 'Solo un administrador puede gestionar usuarios.');
+        }
+    }
+
+    /** Solo SuperAdmin: puede EDITAR datos/contraseña y activar/desactivar. */
+    private function assertEsSuperAdmin(Request $request): void
+    {
+        if (! $request->user()->esSuperAdmin()) {
+            abort(403, 'Solo el SuperAdmin puede editar o desactivar usuarios.');
         }
     }
 
@@ -119,7 +151,8 @@ class UserController extends Controller
             'name' => $u->name,
             'email' => $u->email,
             'rol' => $u->rol,
-            'branch' => $u->branch,
+            'sucursal_id' => $u->sucursal_id,
+            'sucursal' => $u->sucursal?->nombre,
             'active' => $u->active,
         ];
     }
