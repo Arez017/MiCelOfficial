@@ -13,7 +13,7 @@ class ClienteController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Cliente::query();
+        $query = Cliente::with('sucursal');
 
         if ($request->filled('q')) {
             $q = $request->string('q');
@@ -29,7 +29,7 @@ class ClienteController extends Controller
 
     public function show(Cliente $cliente)
     {
-        return response()->json($cliente->load('recibos'));
+        return response()->json($cliente->load(['recibos', 'sucursal']));
     }
 
     /**
@@ -42,7 +42,7 @@ class ClienteController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
-            'branch' => ['nullable', 'string', 'max:100'],
+            'sucursal_id' => ['nullable', 'exists:sucursales,id'],
         ]);
 
         $data['code'] = $this->siguienteCodigo();
@@ -51,7 +51,7 @@ class ClienteController extends Controller
 
         $cliente = Cliente::create($data);
 
-        return response()->json($cliente, 201);
+        return response()->json($cliente->load('sucursal'), 201);
     }
 
     /**
@@ -65,19 +65,34 @@ class ClienteController extends Controller
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'phone' => ['sometimes', 'string', 'max:30'],
-            'branch' => ['nullable', 'string', 'max:100'],
+            'sucursal_id' => ['nullable', 'exists:sucursales,id'],
         ]);
 
         $cliente->update($data);
 
-        return response()->json($cliente);
+        return response()->json($cliente->load('sucursal'));
     }
 
     /**
-     * PATCH /api/clientes/{cliente}/visita
-     * Suma una visita y actualiza la fecha — se llama automático cada vez
-     * que se crea una orden/recibo para ese cliente (o manual si prefieres).
+     * PATCH /api/clientes/{cliente}/cuenta
+     * Crea o resetea el usuario/contraseña de la app móvil para este cliente.
+     * Solo Admin/SuperAdmin. El cliente no se autorregistra: el staff le
+     * da de alta la cuenta cuando corresponde (ej. al entregar su equipo).
      */
+    public function gestionarCuenta(Request $request, Cliente $cliente)
+    {
+        $this->assertEsAdmin($request);
+
+        $data = $request->validate([
+            'username' => ['required', 'string', 'max:50', 'unique:clientes,username,' . $cliente->id],
+            'password' => ['required', 'string', 'min:4'],
+        ]);
+
+        $cliente->update($data);
+
+        return response()->json($cliente->fresh());
+    }
+
     public function registrarVisita(Cliente $cliente)
     {
         $cliente->increment('visits');

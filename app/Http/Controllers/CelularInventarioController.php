@@ -13,7 +13,7 @@ class CelularInventarioController extends Controller
      */
     public function index(Request $request)
     {
-        $query = CelularInventario::query();
+        $query = CelularInventario::with('sucursal');
 
         if (! $request->boolean('all')) {
             $query->where('vendido', false);
@@ -41,7 +41,7 @@ class CelularInventarioController extends Controller
             'imei' => ['required', 'string', 'min:5', 'max:30', 'unique:celulares_inventario,imei'],
             'estado' => ['required', 'string', 'max:50'],
             'precio_compra' => ['required', 'numeric', 'min:0.01'],
-            'sucursal' => ['nullable', 'string', 'max:100'],
+            'sucursal_id' => ['nullable', 'exists:sucursales,id'],
         ], [
             'imei.unique' => 'Ya existe un equipo registrado con ese IMEI en el inventario.',
             'precio_compra.min' => 'El precio de compra debe ser mayor a 0.',

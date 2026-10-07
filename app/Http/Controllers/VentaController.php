@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Venta;
+use App\Services\ClienteFidelidadService;
 use Illuminate\Http\Request;
 
 class VentaController extends Controller
@@ -32,6 +33,7 @@ class VentaController extends Controller
                 'id' => $v->id,
                 'hora' => $v->hora,
                 'client' => $v->client,
+                'phone' => $v->phone,
                 'detail' => $v->detail,
                 'monto' => (float) $v->monto,
                 'pago' => $v->pago,
@@ -49,6 +51,7 @@ class VentaController extends Controller
     {
         $data = $request->validate([
             'client' => ['nullable', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30'],
             'detail' => ['required', 'string', 'max:255'],
             'monto' => ['required', 'numeric', 'min:0'],
             'pago' => ['required', 'in:efectivo,qr'],
@@ -59,6 +62,10 @@ class VentaController extends Controller
         $data['hora'] = now()->format('H:i');
 
         $venta = Venta::create($data);
+
+        // Fidelidad: si el teléfono coincide con una cuenta de cliente, se
+        // le acreditan coins y se actualiza su gasto total (posible VIP).
+        ClienteFidelidadService::registrarGasto($data['phone'] ?? null, (float) $venta->monto);
 
         return response()->json($venta->load('tecnico'), 201);
     }

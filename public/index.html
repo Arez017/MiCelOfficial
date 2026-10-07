@@ -161,10 +161,8 @@
       </div>
       <div class="topbar-actions">
         <span id="topbar-rol" class="badge badge-purple" style="font-size:12px"></span>
-        <select class="select-branch" onchange="filterSucursal(this.value)">
-          <option value="all">Todas las sucursales</option>
-          <option value="Tiwanaku">Upea</option>
-          <option value="Marzo">KevSolutions</option>
+        <select class="select-branch" id="orders-filter-branch" onchange="filterSucursal(this.value)">
+          <option value="">Todas las sucursales</option>
         </select>
         <button class="btn-primary" id="topbar-btn" onclick="topAction('dashboard')">+ Nueva Orden</button>
       </div>
@@ -323,7 +321,7 @@
             </div>
             <div class="form-group"><label>Técnico responsable</label><select id="recibo-tech"></select></div>
             <div class="form-group"><label>Sucursal</label>
-              <select id="recibo-sucursal"><option>KevSolutions</option><option>Upea</option></select>
+              <select id="recibo-sucursal"></select>
             </div>
             <div class="form-group" style="grid-column:span 2"><label>Garantía / Observaciones</label>
               <textarea id="recibo-obs" placeholder="Ej: Garantía de 30 días por el servicio realizado. No cubre daños por humedad."></textarea>
@@ -410,7 +408,7 @@
               <select id="new-user-rol"><option value="tecnico">Técnico</option><option value="administrador">Administrador</option></select>
             </div>
             <div class="form-group"><label>Sucursal</label>
-              <select id="new-user-branch"><option>KevSolutions</option><option>Upea</option><option>Ambas</option></select>
+              <select id="new-user-branch"></select>
             </div>
           </div>
           <div style="padding:0 18px 16px"><button class="btn-primary" onclick="guardarUsuario()">+ Agregar usuario</button></div>
@@ -437,8 +435,6 @@
               <input class="input-search" id="historial-search" placeholder="Buscar por equipo, cliente, técnico..." oninput="filterHistorial(this.value)">
               <select class="select-branch" id="historial-filter-branch" onchange="filterHistorial(document.getElementById('historial-search').value)">
                 <option value="">Todas las sucursales</option>
-                <option value="Tiwanaku">KevSolutions</option>
-                <option value="Av. 6 de Marzo">Upea</option>
               </select>
               <button class="btn-primary" id="btn-add-historial" onclick="openModal('historial-add')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -515,7 +511,7 @@
         <textarea id="modal-obs" placeholder="Estado físico, accesorios entregados, contraseña, etc."></textarea>
       </div>
       <div class="form-group"><label>Sucursal</label>
-        <select id="modal-branch"><option>KevSolutions</option><option>Upea</option></select>
+        <select id="modal-branch"></select>
       </div>
       <div class="form-group"><label>Técnico asignado</label><select id="modal-tech"></select></div>
     </div>
@@ -636,7 +632,7 @@
       <div class="form-group"><label>Nombre completo *</label><input type="text" id="new-cli-name" placeholder="Nombre del cliente"></div>
       <div class="form-group"><label>Teléfono *</label><input type="text" id="new-cli-phone" placeholder="7XXXXXXX"></div>
       <div class="form-group" style="grid-column:span 2"><label>Sucursal de atención</label>
-        <select id="new-cli-branch"><option>KevSolutions</option><option>Upea</option></select>
+        <select id="new-cli-branch"></select>
       </div>
     </div>
     <div class="modal-footer">
@@ -810,6 +806,10 @@
         <input type="text" id="perfil-telefono" placeholder="7XXXXXXX">
       </div>
       <div class="form-group">
+        <label>Contraseña actual</label>
+        <input type="password" id="perfil-pass-actual" placeholder="Solo si vas a cambiar tu contraseña">
+      </div>
+      <div class="form-group">
         <label>Nueva contraseña</label>
         <input type="password" id="perfil-pass-new" placeholder="Dejar vacío para no cambiar">
       </div>
@@ -855,11 +855,7 @@
         </select>
       </div>
       <div class="form-group"><label>Sucursal</label>
-        <select id="nu-branch">
-          <option>KevSolutions</option>
-          <option>Upea</option>
-          <option>Ambas</option>
-        </select>
+        <select id="nu-branch"></select>
       </div>
       <div class="form-group" id="nu-email-group">
         <label>Correo electrónico</label>
@@ -897,11 +893,7 @@
         </select>
       </div>
       <div class="form-group"><label>Sucursal</label>
-        <select id="eu-branch">
-          <option>KevSolutions</option>
-          <option>Upea</option>
-          <option>Ambas</option>
-        </select>
+        <select id="eu-branch"></select>
       </div>
       <div class="form-group">
         <label>Correo electrónico</label>

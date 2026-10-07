@@ -10,21 +10,11 @@ use Illuminate\Validation\ValidationException;
 
 class ProfileController extends Controller
 {
-    /**
-     * GET /api/perfil
-     * Igual que /api/me, pero pensado específicamente para la pantalla de Perfil.
-     */
     public function show(Request $request)
     {
         return response()->json($this->formatUser($request->user()));
     }
 
-    /**
-     * PUT /api/perfil
-     * El usuario edita SU PROPIO nombre, correo y teléfono.
-     * (username, code y rol NO se pueden autoeditar — eso lo cambia un admin
-     * desde el módulo de Usuarios, no el propio dueño de la cuenta.)
-     */
     public function update(Request $request)
     {
         $user = $request->user();
@@ -43,11 +33,6 @@ class ProfileController extends Controller
         return response()->json($this->formatUser($user));
     }
 
-    /**
-     * PUT /api/perfil/password
-     * Requiere la contraseña actual para poder cambiarla (evita que alguien
-     * con la sesión abierta se la cambie sin saber la actual).
-     */
     public function updatePassword(Request $request)
     {
         $user = $request->user();
@@ -55,7 +40,6 @@ class ProfileController extends Controller
         $data = $request->validate([
             'password_actual' => ['required', 'string'],
             'password_nueva' => ['required', 'string', 'min:6', 'confirmed'],
-            // el campo de confirmación debe llamarse: password_nueva_confirmation
         ]);
 
         if (! Hash::check($data['password_actual'], $user->password)) {
@@ -65,30 +49,23 @@ class ProfileController extends Controller
         }
 
         $user->update(['password' => Hash::make($data['password_nueva'])]);
-
-        // Por seguridad, cierra las demás sesiones/tokens activos al cambiar la contraseña
         $user->tokens()->delete();
         $nuevoToken = $user->createToken('micel-token')->plainTextToken;
 
         return response()->json([
             'message' => 'Contraseña actualizada correctamente.',
-            'token' => $nuevoToken, // el frontend debe reemplazar el token guardado con este
+            'token' => $nuevoToken,
         ]);
     }
 
-    /**
-     * POST /api/perfil/foto
-     * Sube/reemplaza la foto de perfil (multipart/form-data, campo "foto").
-     */
     public function subirFoto(Request $request)
     {
         $request->validate([
-            'foto' => ['required', 'image', 'max:2048'], // 2MB máx
+            'foto' => ['required', 'image', 'max:2048'],
         ]);
 
         $user = $request->user();
 
-        // Borra la foto anterior si existía, para no acumular archivos huérfanos
         if ($user->foto_path && Storage::disk('public')->exists($user->foto_path)) {
             Storage::disk('public')->delete($user->foto_path);
         }
@@ -108,7 +85,8 @@ class ProfileController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'rol' => $user->rol,
-            'branch' => $user->branch,
+            'sucursal_id' => $user->sucursal_id,
+            'sucursal' => $user->sucursal?->nombre,
             'active' => $user->active,
             'telefono' => $user->telefono,
             'foto_path' => $user->foto_path,

@@ -19,7 +19,7 @@ class Recibo extends Model
         'monto',
         'pago',
         'tecnico_id',
-        'sucursal',
+        'sucursal_id',
         'obs',
         'tipo',
         'hora',
@@ -42,5 +42,10 @@ class Recibo extends Model
     public function tecnico()
     {
         return $this->belongsTo(User::class, 'tecnico_id');
+    }
+
+    public function sucursal()
+    {
+        return $this->belongsTo(Sucursal::class);
     }
 }

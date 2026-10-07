@@ -4,10 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\ServiceOrder;
 use App\Models\User;
+use App\Services\ClienteFidelidadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Models\Cliente;
-
 
 class ServiceOrderController extends Controller
 {
@@ -18,17 +17,10 @@ class ServiceOrderController extends Controller
         'Listo'       => 'listo',
     ];
 
-    /**
-     * GET /api/orders
-     * Reemplaza renderOrders(ordersData) + filterOrders()/filterSucursal().
-     * - Admin/SuperAdmin ven todas.
-     * - Técnico solo ve las suyas (equivalente a "Mis órdenes").
-     * Soporta ?q= y ?branch=
-     */
     public function index(Request $request)
     {
         $user = $request->user();
-        $query = ServiceOrder::with('tecnico');
+        $query = ServiceOrder::with(['tecnico', 'sucursal']);
 
         if ($user->esTecnico()) {
             $query->where('tecnico_id', $user->id);
@@ -43,8 +35,8 @@ class ServiceOrderController extends Controller
             });
         }
 
-        if ($request->filled('branch') && $request->branch !== 'all') {
-            $query->where('branch', 'like', "%{$request->branch}%");
+        if ($request->filled('sucursal_id')) {
+            $query->where('sucursal_id', $request->integer('sucursal_id'));
         }
 
         return response()->json(
@@ -56,14 +48,9 @@ class ServiceOrderController extends Controller
     {
         $this->assertPuedeVer($request, $order);
 
-        return response()->json($this->formatOrder($order->load('tecnico')));
+        return response()->json($this->formatOrder($order->load(['tecnico', 'sucursal'])));
     }
 
-    /**
-     * POST /api/orders
-     * Reemplaza guardarOrden(). Si el que crea es Técnico, se autoasigna
-     * (igual que tu lógica: currentUser.rol === 'Técnico' ? currentUser.techCode : techCode).
-     */
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -71,7 +58,7 @@ class ServiceOrderController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'device' => ['required', 'string', 'max:255'],
             'service' => ['required', 'string', 'max:255'],
-            'branch' => ['nullable', 'string', 'max:100'],
+            'sucursal_id' => ['nullable', 'exists:sucursales,id'],
             'tecnico_id' => ['nullable', 'exists:users,id'],
             'monto' => ['nullable', 'numeric', 'min:0'],
             'obs' => ['nullable', 'string'],
@@ -85,14 +72,7 @@ class ServiceOrderController extends Controller
 
         $orden = ServiceOrder::create($data);
 
-        // Cliente real: crear o actualizar visitas
-        $this->asegurarCliente(
-            $data['client'],
-            $data['phone'] ?? null,
-            $data['branch'] ?? null
-        );
-
-        return response()->json($this->formatOrder($orden->load('tecnico')), 201);
+        return response()->json($this->formatOrder($orden->load(['tecnico', 'sucursal'])), 201);
     }
 
     /**
@@ -114,9 +94,12 @@ class ServiceOrderController extends Controller
             'status' => ['sometimes', 'in:recepcion,diagnostico,en_proceso,listo'],
         ]);
 
+        $estabaListo = $order->status === 'listo';
         $order->update($data);
 
-        return response()->json($this->formatOrder($order->load('tecnico')));
+        $this->acreditarSiQuedoLista($order, $estabaListo);
+
+        return response()->json($this->formatOrder($order->load(['tecnico', 'sucursal'])));
     }
 
     /**
@@ -131,23 +114,19 @@ class ServiceOrderController extends Controller
             'status' => ['required', 'in:recepcion,diagnostico,en_proceso,listo'],
         ]);
 
+        $estabaListo = $order->status === 'listo';
         $order->update(['status' => $data['status']]);
 
-        return response()->json($this->formatOrder($order->load('tecnico')));
+        $this->acreditarSiQuedoLista($order, $estabaListo);
+
+        return response()->json($this->formatOrder($order->load(['tecnico', 'sucursal'])));
     }
 
-    /**
-     * GET /api/reportes/tecnicos
-     * Reemplaza el array fijo `reporteTecnicos` de app.js — ahora calculado
-     * en tiempo real a partir de las órdenes reales.
-     * - Admin/SuperAdmin: ve todos los técnicos.
-     * - Técnico: solo ve su propia fila (para "Mi comisión").
-     */
     public function reportePorTecnico(Request $request)
     {
         $user = $request->user();
 
-        $tecnicosQuery = User::where('rol', 'tecnico');
+        $tecnicosQuery = User::where('rol', 'tecnico')->with('sucursal');
         if ($user->esTecnico()) {
             $tecnicosQuery->where('id', $user->id);
         }
@@ -160,13 +139,14 @@ class ServiceOrderController extends Controller
                 ->get();
 
             $ingresos = $ordenesListas->sum('monto');
-            $comision = $ordenesListas->sum(fn ($o) => $o->comision); // 15% via accessor
+            $comision = $ordenesListas->sum(fn ($o) => $o->comision);
 
             return [
                 'tecnico_id' => $tecnico->id,
                 'code' => $tecnico->code,
                 'name' => $tecnico->name,
-                'branch' => $tecnico->branch,
+                'sucursal_id' => $tecnico->sucursal_id,
+                'sucursal' => $tecnico->sucursal?->nombre,
                 'ordenes_completadas' => $ordenesListas->count(),
                 'ingresos' => round((float) $ingresos, 2),
                 'comision' => round((float) $comision, 2),
@@ -178,6 +158,18 @@ class ServiceOrderController extends Controller
 
     // ===== Helpers =====
 
+    /**
+     * Acredita coins al cliente solo la PRIMERA vez que la orden llega a
+     * "listo" — si ya estaba lista y se vuelve a guardar (ej. se corrige
+     * una obs), no se le vuelve a acreditar el mismo monto dos veces.
+     */
+    private function acreditarSiQuedoLista(ServiceOrder $order, bool $estabaListoAntes): void
+    {
+        if (! $estabaListoAntes && $order->status === 'listo') {
+            ClienteFidelidadService::registrarGasto($order->phone, (float) $order->monto);
+        }
+    }
+
     private function formatOrder(ServiceOrder $o): array
     {
         return [
@@ -187,7 +179,8 @@ class ServiceOrderController extends Controller
             'phone' => $o->phone,
             'device' => $o->device,
             'service' => $o->service,
-            'branch' => $o->branch,
+            'sucursal_id' => $o->sucursal_id,
+            'sucursal' => $o->sucursal?->nombre,
             'status' => $o->status,
             'status_label' => $o->status_label,
             'monto' => (float) $o->monto,
@@ -219,42 +212,8 @@ class ServiceOrderController extends Controller
     }
 
     private function siguienteCodigo(): string
-        {
-            $ultimoId = ServiceOrder::orderByDesc('id')->value('id') ?? 0;
-            $numero = $ultimoId + 1;
-
-            return '#OS-' . str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
-        }
-
-    private function asegurarCliente(string $name, ?string $phone, ?string $branch): void
     {
-        if (! $phone) {
-            return;
-        }
-
-        $cliente = Cliente::where('phone', $phone)->first();
-
-        if ($cliente) {
-            $cliente->update([
-                'name' => $name,
-                'branch' => $branch ?? $cliente->branch,
-                'visits' => $cliente->visits + 1,
-                'last_visit' => now()->toDateString(),
-            ]);
-
-            return;
-        }
-
-        $ultimo = Cliente::orderByDesc('id')->value('id') ?? 0;
-        $code = 'CLI-' . str_pad((string) ($ultimo + 1), 3, '0', STR_PAD_LEFT);
-
-        Cliente::create([
-            'code' => $code,
-            'name' => $name,
-            'phone' => $phone,
-            'branch' => $branch,
-            'visits' => 1,
-            'last_visit' => now()->toDateString(),
-        ]);
+        $ultimo = ServiceOrder::orderByDesc('id')->value('id') ?? 40;
+        return '#OS-00' . ($ultimo + 1);
     }
 }

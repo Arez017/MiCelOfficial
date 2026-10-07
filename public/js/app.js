@@ -29,7 +29,8 @@ function normalizeUser(u) {
     name: u.name,
     rol: mapRol(u.rol),
     rolRaw: u.rol,
-    branch: u.branch,
+    branch: u.sucursal || '',   // "branch" es el nombre local; el dato real ahora viene en u.sucursal
+    sucursal_id: u.sucursal_id ?? null,
     active: u.active,
     techCode: u.code,
     telefono: u.telefono,
@@ -113,6 +114,7 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- init ----------
 async function initApp() {
+  await loadSucursales();
   await loadUsuarios();
 
   window.usuarios = (tecnicos || []).map((t) => ({
@@ -134,7 +136,42 @@ async function initApp() {
   ]);
 
   populateTechSelects();
+  poblarSelectSucursal(document.getElementById('orders-filter-branch'), { conTodas: true });
+  poblarSelectSucursal(document.getElementById('historial-filter-branch'), { conTodas: true });
+  poblarSelectSucursal(document.getElementById('modal-branch'));
+  poblarSelectSucursal(document.getElementById('nu-branch'), { conAmbas: true });
+  poblarSelectSucursal(document.getElementById('recibo-sucursal'));
+  poblarSelectSucursal(document.getElementById('new-cli-branch'));
+  poblarSelectSucursal(document.getElementById('new-user-branch'), { conAmbas: true });
   if (typeof renderUsers === 'function') renderUsers();
+}
+
+// ===== Sucursales reales (reemplaza las opciones fijas KevSolutions/Upea) =====
+async function loadSucursales() {
+  try {
+    window._sucursales = await SucursalesAPI.list(); // [{id, nombre, activa, ...}]
+  } catch (e) {
+    console.error(e);
+    window._sucursales = [];
+  }
+}
+
+/**
+ * Llena un <select> con las sucursales reales.
+ * opts.conTodas: agrega "Todas las sucursales" (value="") al inicio — para filtros.
+ * opts.conAmbas: agrega "Ambas" (value="") al final — para el form de usuario
+ *                (Admin/SuperAdmin sin sucursal fija).
+ */
+function poblarSelectSucursal(selectEl, opts = {}) {
+  if (!selectEl) return;
+  const sucursales = window._sucursales || [];
+  const partes = [];
+
+  if (opts.conTodas) partes.push(`<option value="">Todas las sucursales</option>`);
+  sucursales.forEach((s) => partes.push(`<option value="${s.id}">${s.nombre}</option>`));
+  if (opts.conAmbas) partes.push(`<option value="">Ambas</option>`);
+
+  selectEl.innerHTML = partes.join('');
 }
 
 async function loadUsuarios() {
@@ -148,7 +185,8 @@ async function loadUsuarios() {
       username: u.username,
       rol: mapRol(u.rol),
       rolRaw: u.rol,
-      branch: u.branch,
+      branch: u.sucursal || '',
+      sucursal_id: u.sucursal_id ?? null,
       active: u.active,
       email: u.email,
     }));
@@ -169,7 +207,8 @@ function normalizeOrder(o) {
     techCode: o.tecnico?.code || '',
     tecnico_id: o.tecnico?.id || null,
     techName: o.tecnico?.name || '—',
-    branch: o.branch || '',
+    branch: o.sucursal || '',
+    sucursal_id: o.sucursal_id ?? null,
     status: o.status_label || mapStatusLabel(o.status),
     statusRaw: o.status,
     monto: o.monto || 0,
@@ -220,7 +259,8 @@ async function loadClientes(params = {}) {
       dbId: c.id,
       name: c.name,
       phone: c.phone,
-      branch: c.branch || '',
+      branch: c.sucursal?.nombre || '',
+      sucursal_id: c.sucursal_id ?? null,
       visits: c.visits || 0,
       lastVisit: c.last_visit
         ? new Date(c.last_visit).toLocaleDateString('es-BO')
@@ -266,7 +306,8 @@ async function loadRecibos() {
       pago: r.pago,
       techCode: r.tecnico?.code || '',
       techName: r.tecnico?.name || '—',
-      sucursal: r.sucursal || '',
+      sucursal: r.sucursal?.nombre || '',
+      sucursal_id: r.sucursal_id ?? null,
       obs: r.obs || '',
       tipo: r.tipo || 'Recibo de servicio técnico',
       hora: r.hora,
@@ -295,7 +336,8 @@ async function loadCelulares() {
 
 async function loadReporteTecnicos() {
   try {
-    window._reporteTecnicos = await OrdersAPI.reporteTecnicos();
+    const reporte = await OrdersAPI.reporteTecnicos();
+    window._reporteTecnicos = reporte.map((t) => ({ ...t, branch: t.sucursal || '' }));
     if (typeof renderReportTech === 'function') renderReportTech();
   } catch (e) {
     console.error(e);
@@ -380,6 +422,47 @@ function statusBadge(s) {
   };
   return `<span class="badge ${m[s] || 'badge-blue'}">${s}</span>`;
 }
+const ESTADOS_ORDEN = [
+  { value: 'recepcion', label: 'Recepción', clase: 'badge-red' },
+  { value: 'diagnostico', label: 'Diagnóstico', clase: 'badge-amber' },
+  { value: 'en_proceso', label: 'En proceso', clase: 'badge-blue' },
+  { value: 'listo', label: 'Listo', clase: 'badge-green' },
+];
+
+/** Select real para cambiar el estado directo desde la tabla — reemplaza
+ * el botón "Estado" que antes abría un prompt() de texto libre. */
+function estadoSelectHtml(orderId, statusRaw) {
+  const actual = ESTADOS_ORDEN.find((e) => e.value === statusRaw) || ESTADOS_ORDEN[0];
+  const opciones = ESTADOS_ORDEN.map(
+    (e) => `
+      <div class="status-dropdown-item ${e.value === statusRaw ? 'is-active' : ''}"
+           onclick="event.stopPropagation(); cerrarStatusDropdowns(); cambiarEstado(${orderId}, '${e.value}')">
+        <span class="status-dot ${e.clase}"></span>${e.label}
+      </div>`
+  ).join('');
+
+  return `
+    <div class="status-dropdown" id="status-dd-${orderId}">
+      <button type="button" class="status-dropdown-trigger ${actual.clase}" onclick="toggleStatusDropdown(event, ${orderId})">
+        ${actual.label} <span class="status-dropdown-caret">▾</span>
+      </button>
+      <div class="status-dropdown-menu">${opciones}</div>
+    </div>`;
+}
+
+function toggleStatusDropdown(ev, orderId) {
+  ev.stopPropagation();
+  const abierto = document.getElementById(`status-dd-${orderId}`)?.classList.contains('is-open');
+  cerrarStatusDropdowns();
+  if (!abierto) document.getElementById(`status-dd-${orderId}`)?.classList.add('is-open');
+}
+
+function cerrarStatusDropdowns() {
+  document.querySelectorAll('.status-dropdown.is-open').forEach((el) => el.classList.remove('is-open'));
+}
+
+document.addEventListener('click', cerrarStatusDropdowns);
+
 function stockBadge(qty, min) {
   if (qty === 0) return `<span class="badge badge-red">Sin stock</span>`;
   if (qty < min) return `<span class="badge badge-amber">Crítico</span>`;
@@ -433,10 +516,9 @@ function renderOrders(data) {
       <td>${o.service}</td>
       <td>${o.techName}</td>
       <td>${o.branch}</td>
-      <td>${statusBadge(o.status)}</td>
+      <td>${estadoSelectHtml(o.id, o.statusRaw)}</td>
       <td style="font-weight:600">${o.monto > 0 ? 'Bs ' + fmtMonto(o.monto) : '—'}</td>
       <td>
-        <button class="btn-sm" onclick="cambiarEstado(${o.id})">Estado</button>
         <button class="btn-sm" onclick="editarOrden(${o.id})">Editar</button>
         <button class="btn-sm btn-sm-primary" onclick="verReciboOrden(${o.id})">Recibo</button>
       </td>
@@ -449,27 +531,20 @@ function filterOrders(q) {
   loadOrders(q ? { q } : {});
 }
 function filterSucursal(v) {
-  loadOrders(v === 'all' ? {} : { branch: v });
+  loadOrders(v ? { sucursal_id: v } : {});
 }
 
-async function cambiarEstado(id) {
+async function cambiarEstado(id, nuevoStatusRaw) {
   const o = ordersData.find((x) => x.id === id);
   if (!o) return;
-  const orden = ['Recepción', 'Diagnóstico', 'En proceso', 'Listo'];
-  const idx = orden.indexOf(o.status);
-  const siguiente = orden[Math.min(idx + 1, orden.length - 1)];
-  const nuevo = prompt('Nuevo estado (Recepción / Diagnóstico / En proceso / Listo):', siguiente);
-  if (!nuevo) return;
-  const apiStatus = mapStatusToApi(nuevo.trim());
-  if (!['recepcion', 'diagnostico', 'en_proceso', 'listo'].includes(apiStatus)) {
-    alert('Estado no válido');
-    return;
-  }
+
   try {
-    await OrdersAPI.cambiarEstado(id, apiStatus);
-    await loadOrders();
+    await OrdersAPI.cambiarEstado(id, nuevoStatusRaw);
+    await loadOrders(); // también refresca coins/VIP del cliente si quedó "listo"
+    showToast(`✓ Orden ${o.code} → ${ESTADOS_ORDEN.find(e => e.value === nuevoStatusRaw)?.label}`);
   } catch (e) {
-    alert(e.message);
+    alert('No se pudo cambiar el estado: ' + e.message);
+    await loadOrders(); // revierte el select visualmente al estado real
   }
 }
 
@@ -545,7 +620,7 @@ async function guardarOrden() {
   const service = document.getElementById('modal-service').value;
   const monto = parseFloat(document.getElementById('modal-monto').value) || 0;
   const obs = document.getElementById('modal-obs').value.trim();
-  const branch = document.getElementById('modal-branch').value;
+  const sucursal_id = document.getElementById('modal-branch').value || null;
   const tecnico_id = document.getElementById('modal-tech').value || null;
 
   if (!client || !device || !service) {
@@ -563,7 +638,7 @@ async function guardarOrden() {
       phone,
       device,
       service,
-      branch,
+      sucursal_id,
       tecnico_id: currentUser.rol === 'Técnico' ? currentUser.id : tecnico_id,
       monto,
       obs,
@@ -583,13 +658,116 @@ async function verReciboOrden(id) {
     alert('Asigna un monto a la orden antes de generar el recibo.');
     return;
   }
+
+  // Si ya tiene un recibo generado, solo lo mostramos (no se duplica)
+  const existente = recibosData.find((r) => r.ordenCode === o.code);
+  if (existente) {
+    mostrarVistaPreviaRecibo(existente.id);
+    return;
+  }
+
   try {
-    const recibo = await OrdersAPI.crearRecibo(id, { pago: 'Efectivo' });
+    const recibo = await RecibosAPI.create({
+      orden_id: o.id,
+      cliente: o.client,
+      telefono: o.phone,
+      equipo: o.device,
+      servicio: o.service,
+      monto: o.monto,
+      pago: 'Efectivo',
+      sucursal_id: o.sucursal_id,
+    });
     await loadRecibos();
     await loadOrders();
-    alert('Recibo ' + (recibo.num_recibo || '') + ' generado.');
+    showToast(`✓ Recibo ${recibo.num_recibo} generado`);
+    mostrarVistaPreviaRecibo(recibo.id);
   } catch (e) {
-    alert(e.message);
+    alert('No se pudo generar el recibo: ' + e.message);
+  }
+}
+
+// ===== RECIBOS: vista previa / imprimir =====
+let _reciboEnPreview = null;
+
+function mostrarVistaPreviaRecibo(id) {
+  const r = recibosData.find((x) => x.id === id);
+  if (!r) return;
+  _reciboEnPreview = r;
+
+  document.getElementById('recibo-preview').innerHTML = `
+    <div style="font-family:monospace;line-height:1.7">
+      <div style="text-align:center;font-weight:700;font-size:16px">MiCel</div>
+      <div style="text-align:center;font-size:11px;color:#777;margin-bottom:10px">${r.tipo}</div>
+      <hr>
+      <div><b>N° Recibo:</b> ${r.numRecibo}</div>
+      <div><b>Fecha:</b> ${r.fecha || ''} ${r.hora || ''}</div>
+      <div><b>Sucursal:</b> ${r.sucursal || '—'}</div>
+      <div><b>Cliente:</b> ${r.cliente}</div>
+      <div><b>Teléfono:</b> ${r.telefono}</div>
+      <div><b>Equipo:</b> ${r.equipo}</div>
+      <div><b>Servicio:</b> ${r.servicio}</div>
+      <div><b>Técnico:</b> ${r.techName}</div>
+      <div><b>Forma de pago:</b> ${r.pago}</div>
+      <hr>
+      <div style="font-size:18px;font-weight:700;text-align:right">Total: Bs ${fmtMonto(r.monto)}</div>
+      ${r.obs ? `<div style="margin-top:8px;font-size:11px;color:#777">${r.obs}</div>` : ''}
+    </div>`;
+
+  document.getElementById('modal-recibo').classList.remove('hidden');
+}
+
+function imprimirRecibo() {
+  if (!_reciboEnPreview) return;
+  const html = document.getElementById('recibo-preview').innerHTML;
+  const w = window.open('', '_blank', 'width=400,height=600');
+  w.document.write(`<html><head><title>${_reciboEnPreview.numRecibo}</title></head><body>${html}</body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
+}
+
+// ===== RECIBOS: editar =====
+function abrirEditarRecibo(id) {
+  const r = recibosData.find((x) => x.id === id);
+  if (!r) return;
+
+  document.getElementById('edit-rec-num').value = id; // guardamos el ID real, no el texto "REC-0001"
+  document.getElementById('edit-rec-num-display').textContent = r.numRecibo;
+  document.getElementById('edit-rec-cliente').value = r.cliente || '';
+  document.getElementById('edit-rec-telefono').value = r.telefono === '—' ? '' : r.telefono;
+  document.getElementById('edit-rec-equipo').value = r.equipo || '';
+  document.getElementById('edit-rec-servicio').value = r.servicio || '';
+  document.getElementById('edit-rec-monto').value = r.monto || '';
+  document.getElementById('edit-rec-pago').value = r.pago || 'Efectivo';
+  document.getElementById('edit-rec-obs').value = r.obs || '';
+
+  const selSuc = document.getElementById('edit-rec-sucursal');
+  poblarSelectSucursal(selSuc);
+  selSuc.value = r.sucursal_id ?? '';
+
+  document.getElementById('modal-editar-recibo').classList.remove('hidden');
+}
+
+async function guardarEdicionRecibo() {
+  const id = parseInt(document.getElementById('edit-rec-num').value, 10);
+  const payload = {
+    cliente: document.getElementById('edit-rec-cliente').value.trim(),
+    telefono: document.getElementById('edit-rec-telefono').value.trim(),
+    equipo: document.getElementById('edit-rec-equipo').value.trim(),
+    servicio: document.getElementById('edit-rec-servicio').value.trim(),
+    monto: parseFloat(document.getElementById('edit-rec-monto').value) || 0,
+    pago: document.getElementById('edit-rec-pago').value,
+    sucursal_id: document.getElementById('edit-rec-sucursal').value || null,
+    obs: document.getElementById('edit-rec-obs').value.trim(),
+  };
+
+  try {
+    await RecibosAPI.update(id, payload);
+    await loadRecibos();
+    closeModal();
+    showToast('✓ Recibo actualizado');
+  } catch (e) {
+    alert('No se pudo actualizar el recibo: ' + e.message);
   }
 }
 
@@ -743,9 +921,99 @@ function renderRecibosHistorial() {
       <td>${r.orden || '—'}</td><td>${r.cliente}</td><td>${r.servicio}</td>
       <td>Bs ${fmtMonto(r.monto)}</td><td>${r.pago}</td>
       <td>${r.techName}</td><td>${r.hora}</td>
+      <td>
+        <button class="btn-sm" onclick="mostrarVistaPreviaRecibo(${r.id})">Ver</button>
+        <button class="btn-sm" onclick="abrirEditarRecibo(${r.id})">Editar</button>
+      </td>
     </tr>`
     )
     .join('');
+}
+
+// ===== RECIBOS: generar uno nuevo =====
+
+/** Al elegir una orden en el select, autocompleta los campos del formulario
+ * (el backend ya NO autocompleta desde orden_id — hay que mandarle todo). */
+function precargarRecibo(ordenId) {
+  if (!ordenId) return;
+  const o = ordersData.find((x) => x.id === parseInt(ordenId, 10));
+  if (!o) return;
+
+  document.getElementById('recibo-cliente').value = o.client || '';
+  document.getElementById('recibo-telefono').value = o.phone || '';
+  document.getElementById('recibo-equipo').value = o.device || '';
+  document.getElementById('recibo-servicio').value = o.service || '';
+  document.getElementById('recibo-monto').value = o.monto || '';
+  const selSuc = document.getElementById('recibo-sucursal');
+  if (selSuc) selSuc.value = o.sucursal_id ?? '';
+}
+
+async function generarRecibo() {
+  const orden_id = document.getElementById('recibo-orden').value || null;
+  const cliente = document.getElementById('recibo-cliente').value.trim();
+  const telefono = document.getElementById('recibo-telefono').value.trim();
+  const equipo = document.getElementById('recibo-equipo').value.trim();
+  const servicio = document.getElementById('recibo-servicio').value.trim();
+  const monto = parseFloat(document.getElementById('recibo-monto').value) || 0;
+  const pago = document.getElementById('recibo-pago').value;
+  const tecnico_id = document.getElementById('recibo-tech').value || null;
+  const sucursal_id = document.getElementById('recibo-sucursal').value || null;
+  const obs = document.getElementById('recibo-obs').value.trim();
+  const tipo = document.getElementById('recibo-tipo')?.value || null;
+
+  if (!cliente || !equipo || !servicio) {
+    alert('Completa Cliente, Equipo y Servicio.');
+    return;
+  }
+  if (monto <= 0) {
+    alert('El monto debe ser mayor a 0.');
+    return;
+  }
+
+  try {
+    const recibo = await RecibosAPI.create({
+      orden_id, cliente, telefono, equipo, servicio, monto, pago, sucursal_id, obs, tipo,
+      tecnico_id,
+    });
+    await loadRecibos();
+    await loadOrders(); // si venía de una orden, ya quedó "Listo"
+    limpiarFormRecibo();
+    showToast(`✓ Recibo ${recibo.num_recibo} generado`);
+    mostrarVistaPreviaRecibo(recibo.id);
+  } catch (e) {
+    alert('No se pudo generar el recibo: ' + e.message);
+  }
+}
+
+function limpiarFormRecibo() {
+  ['recibo-orden', 'recibo-num', 'recibo-cliente', 'recibo-telefono', 'recibo-equipo',
+   'recibo-servicio', 'recibo-monto', 'recibo-obs'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+// ===== NUEVO CLIENTE =====
+async function guardarCliente() {
+  const name = document.getElementById('new-cli-name').value.trim();
+  const phone = document.getElementById('new-cli-phone').value.trim();
+  const sucursal_id = document.getElementById('new-cli-branch').value || null;
+
+  if (!name || !phone) {
+    alert('Completa Nombre y Teléfono.');
+    return;
+  }
+
+  try {
+    const cliente = await ClientesAPI.create({ name, phone, sucursal_id });
+    await loadClientes();
+    document.getElementById('new-cli-name').value = '';
+    document.getElementById('new-cli-phone').value = '';
+    closeModal();
+    showToast(`✓ Cliente "${cliente.name}" registrado (${cliente.code})`);
+  } catch (e) {
+    alert('No se pudo registrar el cliente: ' + e.message);
+  }
 }
 
 function populateReciboOrden() {
@@ -833,6 +1101,5 @@ async function tryRestoreSession() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Política estricta: cada recarga pide login de nuevo
-  clearSession();
+  tryRestoreSession();
 });

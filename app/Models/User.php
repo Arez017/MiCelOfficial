@@ -18,7 +18,7 @@ class User extends Authenticatable
         'email',
         'password',
         'rol',        // superadmin | administrador | tecnico
-        'branch',
+        'sucursal_id',
         'active',
         'telefono',
         'foto_path',
@@ -39,6 +39,11 @@ class User extends Authenticatable
     }
 
     // ===== Relaciones =====
+
+    public function sucursal()
+    {
+        return $this->belongsTo(Sucursal::class);
+    }
 
     /** Órdenes asignadas a este usuario como técnico */
     public function ordenes()

@@ -17,7 +17,7 @@ class CelularInventario extends Model
         'imei',
         'estado',
         'precio_compra',
-        'sucursal',
+        'sucursal_id',
         'vendido',
     ];
 
@@ -32,5 +32,10 @@ class CelularInventario extends Model
     public function venta()
     {
         return $this->hasOne(CelularVenta::class, 'celular_inventario_id');
+    }
+
+    public function sucursal()
+    {
+        return $this->belongsTo(Sucursal::class);
     }
 }

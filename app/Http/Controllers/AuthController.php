@@ -81,7 +81,8 @@ class AuthController extends Controller
             'username' => $user->username,
             'name' => $user->name,
             'rol' => $user->rol, // superadmin | administrador | tecnico
-            'branch' => $user->branch,
+            'sucursal_id' => $user->sucursal_id,
+            'sucursal' => $user->sucursal?->nombre,
             'active' => $user->active,
             'telefono' => $user->telefono,
             'foto_path' => $user->foto_path,

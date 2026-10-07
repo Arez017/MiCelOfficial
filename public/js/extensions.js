@@ -103,8 +103,8 @@ function extendUsuariosPanel() {
 
   const cardHeader = card.querySelector('.card-header');
   if (cardHeader) {
-    // Botón de agregar (solo admins/superadmin)
-    if (currentUser.rol === 'SuperAdmin' || currentUser.user === SUPER_ADMIN_USER) {
+    // Botón de agregar: Admin y SuperAdmin pueden CREAR (la edición es solo SuperAdmin, ver renderUsersEnhanced)
+    if (currentUser.rolRaw === 'administrador' || currentUser.rolRaw === 'superadmin') {
       const btn = document.createElement('button');
       btn.className = 'btn-primary';
       btn.style.fontSize = '12px';
@@ -121,27 +121,28 @@ function extendUsuariosPanel() {
 function renderUsersEnhanced() {
   const tbody = document.getElementById('users-body');
   if (!tbody) return;
-  const isSA = currentUser && currentUser.user === SUPER_ADMIN_USER;
-  const isAdmin = currentUser && currentUser.rol === 'SuperAdmin';
+  // SOLO SuperAdmin edita/activa-desactiva (así lo definimos en el backend).
+  // Admin puede CREAR (botón arriba) pero no tocar cuentas ya existentes.
+  const esSuperAdmin = currentUser && currentUser.rolRaw === 'superadmin';
 
   tbody.innerHTML = tecnicos.map(t => {
     const extra = perfilesExtra[t.user] || {};
-    const rolBadge = t.rol === 'SuperAdmin'
-      ? (t.user === SUPER_ADMIN_USER ? `<span class="superadmin-badge">⭐ Super Admin</span>` : `<span class="badge badge-purple">Super Admin</span>`)
-      : `<span class="badge badge-amber">Técnico</span>`;
+    const rolBadge = t.rolRaw === 'superadmin'
+      ? `<span class="superadmin-badge">⭐ Super Admin</span>`
+      : t.rolRaw === 'administrador'
+        ? `<span class="badge badge-purple">Administrador</span>`
+        : `<span class="badge badge-amber">Técnico</span>`;
     const avatarHtml = extra.foto
       ? `<img src="${extra.foto}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">`
       : `<div class="avatar">${initials(t.name)}</div>`;
 
     let acciones = '';
-    if (isSA) {
+    if (esSuperAdmin) {
       acciones = `
-        <button class="btn-icon" title="Editar usuario" onclick="abrirEditarUsuario('${t.user}')">✎</button>
-        <button class="btn-icon danger" title="Desactivar" onclick="toggleUsuarioActivo('${t.user}')">
+        <button class="btn-icon" title="Editar usuario" onclick="abrirEditarUsuario(${t.id})">✎</button>
+        <button class="btn-icon danger" title="${t.active ? 'Desactivar' : 'Activar'}" onclick="toggleUsuarioActivo(${t.id})">
           ${t.active ? '⊘' : '✓'}
         </button>`;
-    } else if (isAdmin && t.rol !== 'SuperAdmin') {
-      acciones = `<button class="btn-icon" title="Editar" onclick="abrirEditarUsuario('${t.user}')">✎</button>`;
     }
 
     return `<tr>
@@ -160,8 +161,8 @@ function renderUsersEnhanced() {
 function abrirPerfil() {
   if (!currentUser) return;
   const extra = perfilesExtra[currentUser.user] || {};
-  const isSA  = currentUser.user === SUPER_ADMIN_USER;
-  const isAdmin = currentUser.rol === 'SuperAdmin' || isSA;
+  const isSA  = currentUser.rolRaw === 'superadmin';
+  const isAdmin = currentUser.rolRaw === 'administrador' || isSA;
 
   // Avatar display
   const avatarDisp = document.getElementById('perfil-avatar-display');
@@ -256,47 +257,48 @@ function updateSidebarAvatar() {
   }
 }
 
-function guardarPerfil() {
+async function guardarPerfil() {
   if (!currentUser) return;
-  const nombre       = document.getElementById('perfil-nombre').value.trim();
-  const email        = document.getElementById('perfil-email').value.trim();
-  const telefono     = document.getElementById('perfil-telefono').value.trim();
-  const passNew      = document.getElementById('perfil-pass-new').value;
-  const passConfirm  = document.getElementById('perfil-pass-confirm').value;
-  const isSA         = currentUser.user === SUPER_ADMIN_USER;
-  const isAdmin      = currentUser.rol === 'Administrador' || isSA;
+  const nombre      = document.getElementById('perfil-nombre').value.trim();
+  const email       = document.getElementById('perfil-email').value.trim();
+  const telefono    = document.getElementById('perfil-telefono').value.trim();
+  const passActual  = document.getElementById('perfil-pass-actual').value;
+  const passNew     = document.getElementById('perfil-pass-new').value;
+  const passConfirm = document.getElementById('perfil-pass-confirm').value;
 
   if (!nombre) { alert('El nombre no puede estar vacío.'); return; }
+  if (passNew && passNew !== passConfirm) { alert('Las contraseñas no coinciden.'); return; }
+  if (passNew && !passActual) { alert('Escribe tu contraseña actual para poder cambiarla.'); return; }
 
-  if (passNew && passNew !== passConfirm) {
-    alert('Las contraseñas no coinciden.'); return;
-  }
+  // NOTA: username y rol NO se pueden autoeditar (así lo decide el backend a
+  // propósito) — eso se cambia desde el módulo de Usuarios, solo por un
+  // SuperAdmin. Los campos perfil-sa-username/perfil-sa-rol quedaron sin uso.
 
-  // Actualizar nombre en lista en memoria
-  if (!window.usuarios) window.usuarios = getUsuariosList();
-  const uIdx = window.usuarios.findIndex(u => u.user === currentUser.user);
-  if (uIdx >= 0) {
-    window.usuarios[uIdx].name = nombre;
-    if (passNew) window.usuarios[uIdx].pass = passNew;
-    // SuperAdmin puede cambiar username y rol
-    if (isSA) {
-      const newUser = document.getElementById('perfil-sa-username')?.value.trim();
-      const newRol  = document.getElementById('perfil-sa-rol')?.value;
-      if (newUser) window.usuarios[uIdx].user = newUser;
-      if (newRol)  window.usuarios[uIdx].rol  = newRol;
+  try {
+    const actualizado = await ProfileAPI.update({ name: nombre, email, telefono });
+
+    if (passNew) {
+      const resp = await ProfileAPI.updatePassword({
+        password_actual: passActual,
+        password_nueva: passNew,
+        password_nueva_confirmation: passConfirm,
+      });
+      // El backend cierra la sesión vieja al cambiar la contraseña — hay que
+      // guardar el token nuevo que devuelve, o el siguiente request da 401.
+      setSession(resp.token, { ...getStoredUser(), ...actualizado });
+    } else {
+      setSession(getToken(), { ...getStoredUser(), ...actualizado });
     }
-  }
-  // Actualizar en tecnicos
-  const tIdx = tecnicos.findIndex(t => t.user === currentUser.user);
-  if (tIdx >= 0) {
-    tecnicos[tIdx].name = nombre;
-    if (passNew) tecnicos[tIdx].pass = passNew;
+
+    currentUser = normalizeUser(actualizado);
+  } catch (e) {
+    alert('No se pudo guardar el perfil: ' + e.message);
+    return;
   }
 
-  // Guardar extras (email solo admins)
   if (!perfilesExtra[currentUser.user]) perfilesExtra[currentUser.user] = {};
   perfilesExtra[currentUser.user].telefono = telefono;
-  if (isAdmin) perfilesExtra[currentUser.user].email = email;
+  perfilesExtra[currentUser.user].email = email;
 
   // Actualizar currentUser
   currentUser.name = nombre;
@@ -311,94 +313,157 @@ function guardarPerfil() {
   showToast('✓ Perfil actualizado correctamente');
 }
 
-// ===== NUEVO USUARIO (admin) =====
-function guardarNuevoUsuario() {
-  const nombre = document.getElementById('nu-nombre').value.trim();
-  const user   = document.getElementById('nu-user').value.trim().toLowerCase();
-  const pass   = document.getElementById('nu-pass').value.trim();
-  //const rol    = document.getElementById('nu-rol').value;
-  const branch = document.getElementById('nu-branch').value;
-  const email  = document.getElementById('nu-email').value.trim();
-  const activo = document.getElementById('nu-activo').value === 'true';
+// ===== Panel INLINE "Agregar nuevo usuario / técnico" (separado del modal) =====
+// Mismo botón de "crear" que guardarNuevoUsuario(), pero leyendo los campos
+// new-user-* del panel fijo en la página en vez de los nu-* del modal.
+async function guardarUsuario() {
+  const nombre      = document.getElementById('new-user-name').value.trim();
+  const user        = document.getElementById('new-user-username').value.trim().toLowerCase();
+  const email       = document.getElementById('new-user-email').value.trim();
+  const pass        = document.getElementById('new-user-password').value.trim();
+  const rol         = document.getElementById('new-user-rol').value; // ya viene en minúscula: tecnico/administrador
+  const sucursal_id = document.getElementById('new-user-branch').value || null;
 
-  if (!nombre || !user || !pass) { alert('Complete: Nombre, Usuario y Contraseña.'); return; }
-  if (getUsuariosList().find(u => u.user === user)) { alert('Ese nombre de usuario ya existe.'); return; }
+  if (!nombre || !user || !email || !pass) {
+    alert('Complete: Nombre, Usuario, Correo y Contraseña.');
+    return;
+  }
 
-  const newCode = `TEC-${String(tecnicos.length + 1).padStart(2,'0')}`;
-  const nuevoTec = { code: newCode, name: nombre, user, rol, branch, active: activo };
-  const nuevoUser = { user, pass, techCode: newCode, name: nombre, rol };
+  try {
+    await UsuariosAPI.create({ name: nombre, username: user, email, password: pass, rol, sucursal_id });
 
-  tecnicos.push(nuevoTec);
-  if (!window.usuarios) window.usuarios = getUsuariosList(); window.usuarios.push(nuevoUser);
-  perfilesExtra[user] = { email, telefono: '', foto: null, isSuperAdmin: false };
+    await loadUsuarios();
+    populateTechSelects();
+    renderUsersEnhanced();
 
-  populateTechSelects();
-  renderUsersEnhanced();
-  closeModal();
-  showToast(`✓ Usuario "${nombre}" creado correctamente`);
+    ['new-user-name', 'new-user-username', 'new-user-email', 'new-user-password'].forEach((id) => {
+      document.getElementById(id).value = '';
+    });
+
+    showToast(`✓ Usuario "${nombre}" creado correctamente`);
+  } catch (e) {
+    alert('No se pudo crear el usuario: ' + e.message);
+  }
 }
 
-// ===== EDITAR USUARIO (superadmin) =====
-function abrirEditarUsuario(userLogin) {
-  const tec  = tecnicos.find(t => t.user === userLogin);
-  const usr  = getUsuariosList().find(u => u.user === userLogin);
-  const extra = perfilesExtra[userLogin] || {};
-  if (!tec || !usr) return;
+// ===== NUEVO USUARIO (admin) — ahora sí contra la API real =====
+const ROL_FORM_A_API = { 'Técnico': 'tecnico', 'Administrador': 'administrador' };
 
-  document.getElementById('eu-code').value       = userLogin;
+async function guardarNuevoUsuario() {
+  const nombre      = document.getElementById('nu-nombre').value.trim();
+  const user        = document.getElementById('nu-user').value.trim().toLowerCase();
+  const pass        = document.getElementById('nu-pass').value.trim();
+  const rolForm     = document.getElementById('nu-rol').value;
+  const sucursal_id = document.getElementById('nu-branch').value || null;
+  const email       = document.getElementById('nu-email').value.trim();
+  const activo      = document.getElementById('nu-activo').value === 'true';
+
+  if (!nombre || !user || !pass || !email) {
+    alert('Complete: Nombre, Usuario, Contraseña y Correo.');
+    return;
+  }
+
+  try {
+    const nuevo = await UsuariosAPI.create({
+      name: nombre,
+      username: user,
+      email,
+      password: pass,
+      rol: ROL_FORM_A_API[rolForm] || 'tecnico',
+      sucursal_id,
+    });
+
+    if (!activo) await UsuariosAPI.toggleActivo(nuevo.id); // se crea activo por defecto en el backend
+
+    perfilesExtra[user] = { email, telefono: '', foto: null, isSuperAdmin: false };
+
+    await loadUsuarios();
+    populateTechSelects();
+    renderUsersEnhanced();
+    closeModal();
+    showToast(`✓ Usuario "${nombre}" creado correctamente`);
+  } catch (e) {
+    alert('No se pudo crear el usuario: ' + e.message);
+  }
+}
+
+// ===== EDITAR USUARIO (SOLO superadmin) — ahora sí contra la API real =====
+function abrirEditarUsuario(id) {
+  const tec = tecnicos.find(t => t.id === id);
+  if (!tec) return;
+  const extra = perfilesExtra[tec.user] || {};
+
+  document.getElementById('eu-code').value = id; // guardamos el ID real, no el username
   document.getElementById('eu-display-code').textContent = tec.code;
-  document.getElementById('eu-nombre').value     = tec.name;
-  document.getElementById('eu-user').value       = tec.user;
-  document.getElementById('eu-pass').value       = '';
-  document.getElementById('eu-rol').value        = tec.rol;
-  document.getElementById('eu-branch').value     = tec.branch;
-  document.getElementById('eu-email').value      = extra.email || '';
-  document.getElementById('eu-activo').value     = tec.active ? 'true' : 'false';
+  document.getElementById('eu-nombre').value = tec.name;
+  document.getElementById('eu-user').value   = tec.user;
+  document.getElementById('eu-pass').value   = '';
+  document.getElementById('eu-rol').value    = tec.rolRaw === 'administrador' ? 'Administrador' : 'Técnico';
+  document.getElementById('eu-email').value  = extra.email || tec.email || '';
+  document.getElementById('eu-activo').value = tec.active ? 'true' : 'false';
+
+  const sel = document.getElementById('eu-branch');
+  poblarSelectSucursal(sel, { conAmbas: true });
+  sel.value = tec.sucursal_id ?? ''; // '' = "Ambas" (sin sucursal fija)
 
   document.getElementById('modal-editar-usuario').classList.remove('hidden');
 }
 
-function guardarEdicionUsuario() {
-  const userLogin  = document.getElementById('eu-code').value;
-  const nombre     = document.getElementById('eu-nombre').value.trim();
-  const newUser    = document.getElementById('eu-user').value.trim().toLowerCase();
-  const pass       = document.getElementById('eu-pass').value.trim();
-  const rol        = document.getElementById('eu-rol').value;
-  const branch     = document.getElementById('eu-branch').value;
-  const email      = document.getElementById('eu-email').value.trim();
-  const activo     = document.getElementById('eu-activo').value === 'true';
+async function guardarEdicionUsuario() {
+  const id          = parseInt(document.getElementById('eu-code').value, 10);
+  const nombre      = document.getElementById('eu-nombre').value.trim();
+  const newUser     = document.getElementById('eu-user').value.trim().toLowerCase();
+  const pass        = document.getElementById('eu-pass').value.trim();
+  const rolForm     = document.getElementById('eu-rol').value;
+  const sucursal_id = document.getElementById('eu-branch').value || null;
+  const email       = document.getElementById('eu-email').value.trim();
+  const activoForm  = document.getElementById('eu-activo').value === 'true';
 
-  const tIdx = tecnicos.findIndex(t => t.user === userLogin);
-  const uIdx = getUsuariosList().findIndex(u => u.user === userLogin);
-  if (tIdx < 0 || uIdx < 0) return;
+  const tec = tecnicos.find(t => t.id === id);
+  if (!tec) return;
 
-  tecnicos[tIdx].name   = nombre;
-  tecnicos[tIdx].user   = newUser;
-  tecnicos[tIdx].rol    = rol;
-  tecnicos[tIdx].branch = branch;
-  tecnicos[tIdx].active = activo;
+  const payload = {
+    name: nombre,
+    username: newUser,
+    email,
+    rol: ROL_FORM_A_API[rolForm] || 'tecnico',
+    sucursal_id,
+  };
+  if (pass) payload.password = pass; // solo se manda (y se resetea) si escribieron una nueva
 
-  window.usuarios[uIdx].name   = nombre;
-  window.usuarios[uIdx].user   = newUser;
-  window.usuarios[uIdx].rol    = rol;
-  if (pass) window.usuarios[uIdx].pass = pass;
+  try {
+    await UsuariosAPI.update(id, payload);
 
-  if (!perfilesExtra[userLogin]) perfilesExtra[userLogin] = {};
-  perfilesExtra[newUser] = { ...perfilesExtra[userLogin], email };
-  if (newUser !== userLogin) delete perfilesExtra[userLogin];
+    // El estado activo/inactivo es un endpoint aparte — solo togglear si cambió
+    if (activoForm !== tec.active) await UsuariosAPI.toggleActivo(id);
 
-  populateTechSelects();
-  renderUsersEnhanced();
-  closeModal();
-  showToast(`✓ Usuario "${nombre}" actualizado`);
+    if (!perfilesExtra[newUser]) perfilesExtra[newUser] = {};
+    perfilesExtra[newUser] = { ...(perfilesExtra[tec.user] || {}), email };
+    if (newUser !== tec.user) delete perfilesExtra[tec.user];
+
+    await loadUsuarios();
+    populateTechSelects();
+    renderUsersEnhanced();
+    closeModal();
+    showToast(`✓ Usuario "${nombre}" actualizado`);
+  } catch (e) {
+    alert('No se pudo actualizar el usuario: ' + e.message);
+  }
 }
 
-function toggleUsuarioActivo(userLogin) {
-  const tIdx = tecnicos.findIndex(t => t.user === userLogin);
-  if (tIdx < 0) return;
-  tecnicos[tIdx].active = !tecnicos[tIdx].active;
-  renderUsersEnhanced();
-  showToast(`✓ Usuario ${tecnicos[tIdx].active ? 'activado' : 'desactivado'}`);
+async function toggleUsuarioActivo(id) {
+  const tec = tecnicos.find(t => t.id === id);
+  if (!tec) return;
+  if (!confirm(`¿${tec.active ? 'Desactivar' : 'Activar'} a ${tec.name}?`)) return;
+
+  try {
+    const actualizado = await UsuariosAPI.toggleActivo(id);
+    await loadUsuarios();
+    renderUsersEnhanced();
+    showToast(`✓ Usuario ${actualizado.active ? 'activado' : 'desactivado'}`);
+  } catch (e) {
+    alert('No se pudo cambiar el estado: ' + e.message);
+  }
 }
 
 // ===== MIS ÓRDENES (técnico) =====

@@ -18,7 +18,7 @@ class CelularVenta extends Model
         'telefono',
         'precio_venta',
         'metodo_pago', // efectivo | qr | transferencia | cuotas
-        'sucursal',
+        'sucursal_id',
         'vendedor_id',
     ];
 
@@ -37,6 +37,11 @@ class CelularVenta extends Model
     public function vendedor()
     {
         return $this->belongsTo(User::class, 'vendedor_id');
+    }
+
+    public function sucursal()
+    {
+        return $this->belongsTo(Sucursal::class);
     }
 
     public function planPago()

@@ -16,7 +16,7 @@ class ServiceOrder extends Model
         'device',
         'service',
         'tecnico_id',
-        'branch',
+        'sucursal_id',
         'status',    // recepcion | diagnostico | en_proceso | listo
         'monto',
         'obs',
@@ -34,6 +34,11 @@ class ServiceOrder extends Model
     public function tecnico()
     {
         return $this->belongsTo(User::class, 'tecnico_id');
+    }
+
+    public function sucursal()
+    {
+        return $this->belongsTo(Sucursal::class);
     }
 
     public function recibo()

@@ -12,6 +12,7 @@ class Venta extends Model
     protected $fillable = [
         'hora',
         'client',
+        'phone',
         'detail',
         'tecnico_id',
         'monto',

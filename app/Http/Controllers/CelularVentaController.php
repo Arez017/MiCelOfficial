@@ -6,6 +6,7 @@ use App\Models\CelularInventario;
 use App\Models\CelularVenta;
 use App\Models\Cuota;
 use App\Models\PlanPago;
+use App\Services\ClienteFidelidadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -118,7 +119,7 @@ class CelularVentaController extends Controller
                 'telefono' => $data['telefono'] ?? null,
                 'precio_venta' => $data['precio_venta'],
                 'metodo_pago' => $data['metodo_pago'],
-                'sucursal' => $equipo->sucursal,
+                'sucursal_id' => $equipo->sucursal_id,
                 'vendedor_id' => $request->user()->id,
             ]);
 
@@ -137,10 +138,10 @@ class CelularVentaController extends Controller
                     'saldo' => $saldo,
                     'numero_cuotas' => $numero,
                     'frecuencia' => $frecuencia,
-                    'doc_ci' => true,
-                    'doc_boleta' => true,
-                    'doc_luz' => true,
-                    'doc_afp' => true,
+                    'doc_ci' => $data['doc_ci'] ?? false,
+                    'doc_boleta' => $data['doc_boleta'] ?? false,
+                    'doc_luz' => $data['doc_luz'] ?? false,
+                    'doc_afp' => $data['doc_afp'] ?? false,
                 ]);
 
                 $diasPorPeriodo = match ($frecuencia) {
@@ -168,6 +169,12 @@ class CelularVentaController extends Controller
 
             return $venta;
         });
+
+        // Fidelidad: coins por el precio de venta completo, sin importar el
+        // método de pago (incluso en cuotas se acredita de una, sobre el
+        // precio_venta total — si prefieres que sea solo cuando termine de
+        // pagar sus cuotas, dímelo y lo cambio).
+        ClienteFidelidadService::registrarGasto($data['telefono'] ?? null, (float) $data['precio_venta']);
 
         return response()->json($venta->load(['equipo', 'vendedor', 'planPago.cuotas']), 201);
     }

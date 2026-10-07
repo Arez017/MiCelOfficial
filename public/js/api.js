@@ -190,6 +190,16 @@ const CelularesAPI = {
     api(`/cuotas/${cuotaId}/pagar`, { method: 'PATCH' }),
 };
 
+const ProfileAPI = {
+  show: () => api('/perfil'),
+  update: (body) => api('/perfil', { method: 'PUT', body: JSON.stringify(body) }),
+  updatePassword: (body) => api('/perfil/password', { method: 'PUT', body: JSON.stringify(body) }),
+};
+
+const SucursalesAPI = {
+  list: () => api('/sucursales'),
+};
+
 const SeguimientoAPI = {
   get: (codigo) => api(`/seguimiento/${encodeURIComponent(codigo)}`),
 };
