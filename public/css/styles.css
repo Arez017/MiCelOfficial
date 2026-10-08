@@ -441,11 +441,6 @@ body {
 }
 
 /* ===== Menú de estado hecho a mano (reemplaza el <select> nativo) ===== */
-.status-dropdown {
-  position: relative;
-  display: inline-block;
-}
-
 .status-dropdown-trigger {
   display: inline-flex;
   align-items: center;
@@ -469,10 +464,8 @@ body {
 
 .status-dropdown-menu {
   display: none;
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 50;
+  position: fixed; /* no depende de ningún contenedor padre — nunca se corta */
+  z-index: 9999;
   min-width: 150px;
   background: #1c1c1f;
   border: 1px solid var(--gray-700, #333);
@@ -480,7 +473,7 @@ body {
   padding: 4px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
-.status-dropdown.is-open .status-dropdown-menu {
+.status-dropdown-menu.is-open {
   display: block;
 }
 
@@ -503,6 +496,11 @@ body {
   background: rgba(255, 255, 255, 0.06);
   font-weight: 700;
 }
+
+.status-dropdown-item.badge-green { color: var(--success); }
+.status-dropdown-item.badge-blue  { color: var(--accent); }
+.status-dropdown-item.badge-amber { color: var(--warning); }
+.status-dropdown-item.badge-red   { color: var(--danger); }
 
 .status-dot {
   width: 8px;

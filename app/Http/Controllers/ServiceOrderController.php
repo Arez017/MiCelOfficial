@@ -89,6 +89,7 @@ class ServiceOrderController extends Controller
             'device' => ['sometimes', 'string', 'max:255'],
             'service' => ['sometimes', 'string', 'max:255'],
             'tecnico_id' => ['sometimes', 'nullable', 'exists:users,id'],
+            'sucursal_id' => ['sometimes', 'nullable', 'exists:sucursales,id'],
             'monto' => ['sometimes', 'numeric', 'min:0'],
             'obs' => ['nullable', 'string'],
             'status' => ['sometimes', 'in:recepcion,diagnostico,en_proceso,listo'],

@@ -6,7 +6,7 @@
   <title>MiCel — Sistema de Gestión</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=3">
 <link rel="stylesheet" href="css/extensions.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
@@ -259,34 +259,110 @@
           <div class="metric-card"><div class="metric-label">Ganancia total</div><div class="metric-value" id="cel-ganancia">Bs 0</div><div class="metric-trend positive">margen sobre compra</div></div>
           <div class="metric-card"><div class="metric-label">En inventario</div><div class="metric-value" id="cel-inventario">0</div><div class="metric-trend">equipos disponibles</div></div>
         </div>
+
+        <!-- PASO 1: Ingresar equipo al inventario -->
         <div class="card">
-          <div class="card-header"><h3 class="card-title">Registrar venta de celular</h3></div>
+          <div class="card-header"><h3 class="card-title">1. Ingresar celular al inventario</h3></div>
           <div class="form-grid">
-            <div class="form-group"><label>Marca y modelo *</label><input type="text" id="cel-modelo" placeholder="Ej: Samsung Galaxy A54"></div>
-            <div class="form-group"><label>IMEI</label><input type="text" id="cel-imei" placeholder="15 dígitos"></div>
+            <div class="form-group"><label>Marca y modelo *</label><input type="text" id="cel-inv-modelo" placeholder="Ej: Samsung Galaxy A54"></div>
+            <div class="form-group"><label>IMEI *</label><input type="text" id="cel-inv-imei" placeholder="15 dígitos"></div>
             <div class="form-group"><label>Estado del equipo</label>
-              <select id="cel-estado"><option>Nuevo</option><option>Usado — Excelente</option><option>Usado — Bueno</option><option>Reacondicionado</option></select>
+              <select id="cel-inv-estado"><option>Nuevo</option><option>Usado — Excelente</option><option>Usado — Bueno</option><option>Reacondicionado</option></select>
             </div>
-            <div class="form-group"><label>Cliente</label><input type="text" id="cel-cliente" placeholder="Nombre del cliente"></div>
-            <div class="form-group"><label>Precio de compra (Bs)</label><input type="number" id="cel-compra" placeholder="0.00"></div>
-            <div class="form-group"><label>Precio de venta (Bs) *</label><input type="number" id="cel-venta" placeholder="0.00"></div>
-            <div class="form-group"><label>Método de pago</label>
-              <select id="cel-pago"><option>Efectivo</option><option>QR (transferencia)</option><option>Transferencia bancaria</option><option>Cuotas</option></select>
-            </div>
+            <div class="form-group"><label>Precio de compra (Bs) *</label><input type="number" id="cel-inv-compra" placeholder="0.00"></div>
             <div class="form-group"><label>Sucursal</label>
-              <select id="cel-branch"><option>KevSolutions</option><option>Upea</option></select>
+              <select id="cel-inv-branch"></select>
             </div>
           </div>
-          <div style="padding:0 18px 16px"><button class="btn-primary" onclick="registrarVentaCelular()">Registrar venta</button></div>
+          <div style="padding:0 18px 16px"><button class="btn-primary" onclick="agregarInventarioCelular()">+ Agregar al inventario</button></div>
         </div>
+
+        <!-- PASO 2: Inventario disponible -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Inventario disponible</h3>
+            <input class="input-search" placeholder="Buscar por modelo o IMEI..." oninput="filterInventarioCelulares(this.value)">
+          </div>
+          <table class="table">
+            <thead><tr><th>Fecha ingreso</th><th>Modelo</th><th>IMEI</th><th>Estado</th><th>Compra</th><th>Sucursal</th><th></th></tr></thead>
+            <tbody id="inventario-cel-body"><tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:24px">No hay equipos en inventario. Agrega uno arriba.</td></tr></tbody>
+          </table>
+        </div>
+
+        <!-- PASO 3: Vender un equipo del inventario -->
+        <div class="card" id="card-vender-celular">
+          <div class="card-header"><h3 class="card-title">2. Vender un equipo del inventario</h3></div>
+          <div class="form-grid">
+            <div class="form-group" style="grid-column:1 / -1">
+              <label>Equipo a vender *</label>
+              <select id="cel-venta-select" onchange="precargarVentaCelular(this.value)">
+                <option value="">— Seleccione un equipo del inventario —</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Cliente *</label><input type="text" id="cel-cliente" placeholder="Nombre del cliente"></div>
+            <div class="form-group"><label>Teléfono / CI cliente</label><input type="text" id="cel-cliente-tel" placeholder="Ej: 71234567"></div>
+            <div class="form-group"><label>Precio de venta (Bs) *</label><input type="number" id="cel-venta" placeholder="0.00"></div>
+            <div class="form-group"><label>Método de pago</label>
+              <select id="cel-pago" onchange="toggleCuotasFields()"><option>Efectivo</option><option>QR (transferencia)</option><option>Transferencia bancaria</option><option>Cuotas</option></select>
+            </div>
+          </div>
+
+          <!-- Campos que solo aparecen si el método de pago es "Cuotas" -->
+          <div class="form-grid hidden" id="cel-cuotas-fields" style="border-top:1px solid var(--gray-100)">
+            <div class="form-group"><label>Pago inicial (Bs) — opcional</label><input type="number" id="cel-cuotas-inicial" placeholder="0.00 (puedes dejarlo en 0)"></div>
+            <div class="form-group"><label>Número de cuotas * (máx. 15)</label><input type="number" id="cel-cuotas-numero" placeholder="Ej: 6" min="1" max="15"></div>
+            <div class="form-group"><label>Frecuencia de pago</label>
+              <select id="cel-cuotas-frecuencia"><option value="mensual">Mensual</option><option value="quincenal">Quincenal</option><option value="semanal">Semanal</option></select>
+            </div>
+          </div>
+
+          <!-- Documentos requeridos para venta a crédito (Plan Cuotas MiCel) -->
+          <div class="hidden" id="cel-cuotas-docs" style="padding:0 18px 4px">
+            <div style="font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">
+              Documentos requeridos — Plan Cuotas MiCel
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--gray-700)">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="doc-ci"> Documento de identidad vigente (CI)
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="doc-boleta"> Última boleta de pago / comprobante de ingresos
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="doc-luz"> Aviso de luz de la vivienda actual
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="doc-afp"> Extracto de AFP
+              </label>
+            </div>
+          </div>
+
+          <div style="padding:12px 18px 16px"><button class="btn-primary" onclick="registrarVentaCelular()">Confirmar venta</button></div>
+        </div>
+
+
+        <!-- Consulta de estado de cuenta (deuda pendiente) -->
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Consultar estado de cuenta</h3></div>
+          <div style="padding:14px 18px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-group" style="flex:1;min-width:220px">
+              <label>Buscar por cliente o IMEI</label>
+              <input type="text" id="cel-consulta-input" placeholder="Ej: Arez, o 123456789012345">
+            </div>
+            <button class="btn-secondary" onclick="consultarEstadoCuenta()">Consultar</button>
+          </div>
+          <div id="cel-consulta-resultado" style="padding:0 18px 16px;font-size:13px;color:var(--gray-500)"></div>
+        </div>
+
+        <!-- Historial -->
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">Celulares vendidos</h3>
             <input class="input-search" placeholder="Buscar por modelo, IMEI o cliente..." oninput="filterCelulares(this.value)">
           </div>
           <table class="table">
-            <thead><tr><th>Fecha</th><th>Modelo</th><th>IMEI</th><th>Estado</th><th>Cliente</th><th>Compra</th><th>Venta</th><th>Ganancia</th><th>Sucursal</th></tr></thead>
-            <tbody id="celulares-body"><tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:24px">No se han registrado ventas de celulares aún</td></tr></tbody>
+            <thead><tr><th>Fecha</th><th>Modelo</th><th>IMEI</th><th>Estado</th><th>Cliente</th><th>Compra</th><th>Venta</th><th>Ganancia</th><th>Sucursal</th><th>Pago</th><th></th></tr></thead>
+            <tbody id="celulares-body"><tr><td colspan="11" style="text-align:center;color:var(--gray-400);padding:24px">No se han registrado ventas de celulares aún</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -526,7 +602,7 @@
 <div class="modal-overlay hidden" id="modal-editar-orden">
   <div class="modal-box">
     <div class="modal-header"><h3>Editar Orden <span id="edit-order-code" style="color:var(--primary)"></span></h3><button class="modal-close" onclick="closeModal()">✕</button></div>
-    <input type="hidden" id="edit-order-code">
+    <input type="hidden" id="edit-order-id">
     <div class="form-grid">
       <div class="form-group"><label>Cliente</label><input type="text" id="edit-order-client"></div>
       <div class="form-group"><label>Teléfono</label><input type="text" id="edit-order-phone"></div>
@@ -540,6 +616,7 @@
         </select>
       </div>
       <div class="form-group"><label>Técnico</label><select id="edit-order-tech"></select></div>
+      <div class="form-group"><label>Sucursal</label><select id="edit-order-sucursal"></select></div>
       <div class="form-group" style="grid-column:span 2"><label>Observaciones / Garantía</label>
         <textarea id="edit-order-obs"></textarea>
       </div>
@@ -661,6 +738,24 @@
 </div>
 
 
+
+<!-- MODAL: CONTRATO DE VENTA A CRÉDITO + PLAN DE PAGOS -->
+<div class="modal-overlay hidden" id="modal-contrato-cel">
+  <div class="modal-box" style="width:600px">
+    <div class="modal-header">
+      <h3>Contrato de venta a crédito</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="contrato-cel-preview" style="padding:20px;max-height:70vh;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cerrar</button>
+      <button class="btn-primary" onclick="imprimirContratoCelular()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Imprimir contrato
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL: EDITAR RECIBO -->
 <div class="modal-overlay hidden" id="modal-editar-recibo">
