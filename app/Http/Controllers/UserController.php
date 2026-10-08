@@ -142,18 +142,23 @@ class UserController extends Controller
         return 'TEC-' . str_pad((string) ($ultimo + 1), 2, '0', STR_PAD_LEFT);
     }
 
-    private function formatUser(User $u): array
-    {
-        return [
-            'id' => $u->id,
-            'code' => $u->code,
-            'username' => $u->username,
-            'name' => $u->name,
-            'email' => $u->email,
-            'rol' => $u->rol,
-            'sucursal_id' => $u->sucursal_id,
-            'sucursal' => $u->sucursal?->nombre,
-            'active' => $u->active,
-        ];
-    }
+
+
+private function formatUser(User $u): array
+{
+    return [
+        'id' => $u->id,
+        'code' => $u->code,
+        'username' => $u->username,
+        'name' => $u->name,
+        'email' => $u->email,
+        'rol' => $u->rol,
+        'sucursal_id' => $u->sucursal_id,
+        'sucursal' => $u->sucursal?->nombre,
+        'active' => $u->active,
+        'telefono' => $u->telefono,
+        'foto_path' => $u->foto_path,
+        'foto_url' => $u->foto_path ? asset('storage/' . $u->foto_path) : null,
+    ];
+}
 }

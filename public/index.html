@@ -239,7 +239,7 @@
             </div>
             <div class="form-group"><label>Técnico responsable</label><select id="venta-tech"></select></div>
             <div class="form-group"><label>Sucursal</label>
-              <select><option>KevSolutions</option><option>Upea</option></select>
+              <select id="venta-sucursal"></select>
             </div>
           </div>
           <div style="padding:0 18px 16px"><button class="btn-primary" onclick="registrarVenta()">Registrar venta</button></div>
@@ -428,26 +428,39 @@
         <div class="card">
           <div class="card-header"><h3 class="card-title">Filtrar reporte</h3></div>
           <div class="form-grid" style="grid-template-columns:1fr 1fr auto auto">
-            <div class="form-group"><label>Desde</label><input type="date"></div>
-            <div class="form-group"><label>Hasta</label><input type="date"></div>
-            <div class="form-group"><label>&nbsp;</label><button class="btn-primary">Generar</button></div>
-            <div class="form-group"><label>&nbsp;</label><button class="btn-secondary">Exportar PDF</button></div>
+            <div class="form-group"><label>Desde</label><input type="date" id="reporte-desde"></div>
+            <div class="form-group"><label>Hasta</label><input type="date" id="reporte-hasta"></div>
+            <div class="form-group"><label>&nbsp;</label><button class="btn-primary" onclick="generarReporte()">Generar</button></div>
+            <div class="form-group"><label>&nbsp;</label><button class="btn-secondary" onclick="exportarReportePDF()">Exportar PDF</button></div>
           </div>
         </div>
         <div class="metrics-grid">
-          <div class="metric-card"><div class="metric-label">Total servicios</div><div class="metric-value">143</div><div class="metric-trend">este mes</div></div>
-          <div class="metric-card"><div class="metric-label">Ingresos totales</div><div class="metric-value">Bs 23,480</div><div class="metric-trend positive">↑ vs mes anterior</div></div>
-          <div class="metric-card"><div class="metric-label">Tiempo prom.</div><div class="metric-value">1.8 días</div><div class="metric-trend">por reparación</div></div>
-          <div class="metric-card"><div class="metric-label">Satisfacción</div><div class="metric-value">94%</div><div class="metric-trend positive">según encuestas</div></div>
+          <div class="metric-card">
+            <div class="metric-label">Servicios completados</div>
+            <div class="metric-value" id="rep-metric-servicios">0</div>
+            <div class="metric-trend" id="rep-metric-servicios-trend">órdenes en rango</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Ganancia neta</div>
+            <div class="metric-value" id="rep-metric-ganancia">Bs 0</div>
+            <div class="metric-trend" id="rep-metric-ganancia-trend">cel + servicios</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Ticket promedio</div>
+            <div class="metric-value" id="rep-metric-ticket">Bs 0</div>
+            <div class="metric-trend" id="rep-metric-ticket-trend">por servicio listo</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Tasa de cierre</div>
+            <div class="metric-value" id="rep-metric-cierre">0%</div>
+            <div class="metric-trend" id="rep-metric-cierre-trend">órdenes listas / total</div>
+          </div>
         </div>
         <div class="card">
           <div class="card-header"><h3 class="card-title">Servicios más frecuentes</h3></div>
           <table class="table"><thead><tr><th>Servicio</th><th>Cantidad</th><th>Ingresos (Bs)</th><th>Participación</th></tr></thead>
-          <tbody>
-            <tr><td>Cambio de pantalla</td><td>48</td><td>8,640</td><td><div class="bar-wrap"><div class="bar-fill" style="width:70%"></div><span>70%</span></div></td></tr>
-            <tr><td>Pin de carga</td><td>32</td><td>3,840</td><td><div class="bar-wrap"><div class="bar-fill" style="width:47%"></div><span>47%</span></div></td></tr>
-            <tr><td>Flasheo / Firmware</td><td>28</td><td>2,240</td><td><div class="bar-wrap"><div class="bar-fill" style="width:40%"></div><span>40%</span></div></td></tr>
-            <tr><td>Backlight</td><td>19</td><td>3,040</td><td><div class="bar-wrap"><div class="bar-fill" style="width:28%"></div><span>28%</span></div></td></tr>
+          <tbody id="report-servicios-body">
+            <tr><td colspan="4" style="text-align:center;color:var(--gray-400)">Sin datos aún — pulsa Generar</td></tr>
           </tbody></table>
         </div>
         <div class="card">
@@ -1027,15 +1040,15 @@
         <textarea id="ha-desc" placeholder="Detalles del trabajo realizado..."></textarea>
       </div>
       <div class="form-group" style="grid-column:span 2">
-        <label>Fotografía</label>
-        <div class="historial-upload-zone" onclick="document.getElementById('ha-file-input').click()">
-          <input type="file" id="ha-file-input" accept="image/*" style="position:absolute;opacity:0;inset:0;cursor:pointer" onchange="previewHistorialImg(event)">
+        <label>Fotografías (biblioteca — puedes subir varias)</label>
+        <div class="historial-upload-zone" onclick="document.getElementById('ha-file-input').click()" style="position:relative">
+          <input type="file" id="ha-file-input" accept="image/*" multiple style="position:absolute;opacity:0;inset:0;cursor:pointer;width:100%;height:100%" onchange="previewHistorialImgs(event)">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px;display:block;color:var(--gray-400)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          <div style="font-size:13px;color:var(--gray-500)">Haz clic o arrastra una imagen aquí</div>
-          <div style="font-size:11px;color:var(--gray-400);margin-top:4px">PNG, JPG, WebP</div>
+          <div style="font-size:13px;color:var(--gray-500)">Haz clic para elegir una o varias imágenes</div>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:4px">PNG, JPG, WebP · máx. 12 fotos · 4 MB c/u</div>
         </div>
-        <img id="ha-preview-img" class="historial-upload-preview" alt="preview">
-        <input type="hidden" id="ha-img-data">
+        <div id="ha-preview-gallery" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+        <div id="ha-preview-count" style="font-size:12px;color:var(--gray-400);margin-top:6px"></div>
       </div>
     </div>
     <div class="modal-footer">

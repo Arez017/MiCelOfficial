@@ -93,6 +93,27 @@ function applyUserSession() {
   if (navMisOrdenes) {
     navMisOrdenes.style.display = currentUser.rol === 'Técnico' ? '' : 'none';
   }
+
+  // Stock: solo Admin/SuperAdmin modifican — el técnico ve inventario en solo lectura
+  aplicarPermisosStock();
+}
+
+function aplicarPermisosStock() {
+  const admin = esAdminOSuper();
+  // Botón superior "+ Agregar repuesto"
+  const topBtn = document.getElementById('topbar-btn');
+  // Si estamos en panel stock, ocultar botón para técnico
+  const panelStock = document.getElementById('panel-stock');
+  if (panelStock && panelStock.classList.contains('active') && topBtn) {
+    topBtn.style.display = admin ? '' : 'none';
+  }
+  // Cualquier botón fijo de agregar en stock modal / panel
+  document.querySelectorAll('button.btn-primary, button.btn-secondary').forEach(btn => {
+    const oc = btn.getAttribute('onclick') || '';
+    if (oc.includes("openModal('repuesto')") || oc.includes('openModal("repuesto")')) {
+      btn.style.display = admin ? '' : 'none';
+    }
+  });
 }
 
 async function doLogout() {
@@ -133,6 +154,7 @@ async function initApp() {
     loadRecibos(),
     loadCelulares(),
     loadReporteTecnicos(),
+    loadHistorial(),
   ]);
 
   populateTechSelects();
@@ -144,7 +166,12 @@ async function initApp() {
   poblarSelectSucursal(document.getElementById('new-cli-branch'));
   poblarSelectSucursal(document.getElementById('new-user-branch'), { conAmbas: true });
   poblarSelectSucursal(document.getElementById('cel-inv-branch'));
+  poblarSelectSucursal(document.getElementById('venta-sucursal'));
   if (typeof renderUsers === 'function') renderUsers();
+
+  // Datos reales en Dashboard y Reportes
+  updateDashboard();
+  renderReportesCompletos();
 }
 
 // ===== Sucursales reales (reemplaza las opciones fijas KevSolutions/Upea) =====
@@ -225,6 +252,8 @@ async function loadOrders(params = {}) {
     renderOrders(ordersData);
     renderDashOrders();
     populateReciboOrden();
+    if (typeof updateDashboard === 'function') updateDashboard();
+    if (typeof renderReportesCompletos === 'function') renderReportesCompletos();
   } catch (e) {
     console.error(e);
   }
@@ -247,6 +276,7 @@ async function loadStock(params = {}) {
     const list = await StockAPI.list(params);
     stockData = list.map(normalizeStock);
     renderStock(stockData);
+    if (typeof updateDashboard === 'function') updateDashboard();
   } catch (e) {
     console.error(e);
   }
@@ -513,7 +543,8 @@ async function registrarVentaCelular(confirmarPerdida = false) {
 
   if (!invId) { alert('Seleccione un equipo del inventario para vender.'); return; }
   if (!cliente) { alert('El nombre del cliente es obligatorio.'); return; }
-  if (!soloLetras(cliente)) { alert('⚠️ El nombre del cliente no puede contener números.\nUse solo letras y espacios.'); return; }
+  if (!validarNombre(cliente, 'Cliente')) return;
+  if (telefono && !validarTelefono(telefono, false)) return;
   if (isNaN(venta) || venta <= 0) { alert('El precio de venta debe ser mayor a 0.'); return; }
 
   const body = {
@@ -828,14 +859,43 @@ function nav(id, el) {
     btn.onclick = () => topAction(id);
   }
   closeSidebarMobile();
+
+  if (typeof aplicarPermisosStock === 'function') aplicarPermisosStock();
+  if (id === 'stock') {
+    const topBtn = document.getElementById('topbar-btn');
+    if (topBtn) topBtn.style.display = esAdminOSuper() ? '' : 'none';
+  } else if (id !== 'stock') {
+    const topBtn = document.getElementById('topbar-btn');
+    // restaurar visibilidad del botón según navConfig
+    if (topBtn && topBtn.textContent) topBtn.style.display = topBtn.textContent.trim() ? '' : 'none';
+  }
+  if (id === 'mis-ordenes' && typeof renderMisOrdenes === 'function') renderMisOrdenes();
+  if (id === 'reportes' && typeof renderReportesCompletos === 'function') renderReportesCompletos();
+  if (id === 'dashboard' && typeof updateDashboard === 'function') updateDashboard();
+
 }
 
 function topAction(id) {
   if (id === 'dashboard' || id === 'ordenes') openModal('orden');
-  else if (id === 'stock') document.getElementById('new-rep-name')?.focus();
-  else if (id === 'ventas') openModal('venta');
+  else if (id === 'stock') {
+    if (!esAdminOSuper()) {
+      showToast('Solo Admin / Super Admin pueden agregar o modificar stock', 'error');
+      return;
+    }
+    openModal('repuesto');
+  }
+  else if (id === 'ventas') {
+    // focus form on ventas panel
+    document.getElementById('venta-detalle')?.focus();
+  }
   else if (id === 'clientes') openModal('cliente');
   else if (id === 'recibos') openModal('recibo-manual');
+  else if (id === 'reportes') {
+    if (typeof renderReportesCompletos === 'function') renderReportesCompletos();
+    showToast('✓ Reporte actualizado con datos reales');
+  }
+  else if (id === 'celulares') document.getElementById('cel-inv-modelo')?.focus();
+  else if (id === 'historial') openModal('historial-add');
 }
 
 function toggleSidebar() {
@@ -862,8 +922,97 @@ function initials(name) {
 function fmtMonto(v) {
   return parseFloat(v || 0).toLocaleString('es-BO', { minimumFractionDigits: 0 });
 }
+
+/** Solo Admin / Super Admin pueden modificar stock */
+function esAdminOSuper() {
+  if (!currentUser) return false;
+  const r = (currentUser.rolRaw || '').toLowerCase();
+  const label = (currentUser.rol || '').toLowerCase();
+  return r === 'administrador' || r === 'superadmin' ||
+    label.includes('admin');
+}
+
 function soloLetras(valor) {
-  return !/\d/.test(valor);
+  // Solo letras, espacios y acentos (nombres de personas)
+  return /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s.'-]+$/.test((valor || '').trim()) && (valor || '').trim().length >= 2;
+}
+
+function soloTelefono(valor) {
+  // Solo dígitos, opcional + al inicio, 7 a 15 dígitos
+  const v = (valor || '').trim();
+  if (!v) return true; // opcional en muchos formularios
+  return /^\+?\d{7,15}$/.test(v.replace(/[\s\-()]/g, ''));
+}
+
+function soloEnteroNoNeg(valor) {
+  const n = Number(valor);
+  return Number.isInteger(n) && n >= 0;
+}
+
+function soloDecimalPositivo(valor, permitirCero = true) {
+  const n = parseFloat(valor);
+  if (isNaN(n)) return false;
+  return permitirCero ? n >= 0 : n > 0;
+}
+
+function limpiarTelefono(valor) {
+  return (valor || '').replace(/[\s\-()]/g, '');
+}
+
+function validarNombre(valor, etiqueta) {
+  if (!(valor || '').trim()) {
+    showToast(etiqueta + ' es obligatorio', 'error');
+    return false;
+  }
+  if (!soloLetras(valor)) {
+    showToast(etiqueta + ': solo letras y espacios (sin números)', 'error');
+    return false;
+  }
+  return true;
+}
+
+function validarTelefono(valor, obligatorio) {
+  const v = (valor || '').trim();
+  if (!v) {
+    if (obligatorio) {
+      showToast('Teléfono es obligatorio', 'error');
+      return false;
+    }
+    return true;
+  }
+  if (!soloTelefono(v)) {
+    showToast('Teléfono inválido: solo números (7 a 15 dígitos)', 'error');
+    return false;
+  }
+  return true;
+}
+
+function validarCantidad(valor, etiqueta, permitirCero) {
+  if (valor === '' || valor === null || valor === undefined) {
+    showToast(etiqueta + ' es obligatorio', 'error');
+    return false;
+  }
+  if (!soloEnteroNoNeg(valor)) {
+    showToast(etiqueta + ': debe ser un número entero ≥ 0', 'error');
+    return false;
+  }
+  if (!permitirCero && parseInt(valor, 10) === 0) {
+    showToast(etiqueta + ': debe ser mayor a 0', 'error');
+    return false;
+  }
+  return true;
+}
+
+function validarMonto(valor, etiqueta, permitirCero) {
+  if (valor === '' || valor === null || valor === undefined) {
+    showToast(etiqueta + ' es obligatorio', 'error');
+    return false;
+  }
+  if (!soloDecimalPositivo(valor, permitirCero)) {
+    showToast(etiqueta + ': debe ser un número' + (permitirCero ? ' ≥ 0' : ' mayor a 0'), 'error');
+    return false;
+  }
+  return true;
 }
 function statusBadge(s) {
   const m = {
@@ -1010,17 +1159,216 @@ function filterSucursal(v) {
   loadOrders(v ? { sucursal_id: v } : {});
 }
 
+
+
+// =====================================================================
+// DESCUENTO AUTOMÁTICO DE STOCK al completar servicio (estado → Listo)
+// Ej: "Cambio de pantalla" + "Camon 18P" → busca "Pantalla ... Camon 18P"
+// =====================================================================
+const STOCK_DEDUCTED_KEY = 'micel_stock_deducted_orders';
+
+function _stockDeductedSet() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(STOCK_DEDUCTED_KEY) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+function _markStockDeducted(orderId) {
+  const s = _stockDeductedSet();
+  s.add(String(orderId));
+  localStorage.setItem(STOCK_DEDUCTED_KEY, JSON.stringify([...s]));
+}
+function _yaDescontoStock(orderId) {
+  return _stockDeductedSet().has(String(orderId));
+}
+
+/** Tipo de repuesto según el servicio */
+function _tipoRepuestoPorServicio(service) {
+  const s = (service || '').toLowerCase();
+  if (/pantalla|display|lcd|touch/.test(s)) return ['pantalla', 'display', 'lcd', 'touch', 'screen'];
+  if (/bater/.test(s)) return ['bateria', 'batería', 'battery'];
+  if (/pin de carga|conector.*carga|puerto.*carga|carga/.test(s) && !/bater/.test(s))
+    return ['pin', 'carga', 'conector', 'flex carga', 'puerto'];
+  if (/backlight|retroilumin/.test(s)) return ['backlight', 'retroilumin', 'luz'];
+  if (/flex|c[aá]mara|camara/.test(s)) return ['flex', 'camara', 'cámara'];
+  if (/tapa|carcasa|housing/.test(s)) return ['tapa', 'carcasa', 'housing'];
+  if (/altavoz|speaker|auricular/.test(s)) return ['altavoz', 'speaker', 'auricular'];
+  // Software / cuentas → no descuenta stock físico
+  if (/flasheo|firmware|cuenta google|cuenta xiaomi|samsung account|software/.test(s)) return null;
+  return null;
+}
+
+/** Tokens del modelo (Camon 18P → ["camon","18p","18"]) */
+function _tokensDispositivo(device) {
+  const raw = (device || '').toLowerCase()
+    .replace(/[^a-z0-9áéíóúñ\s]/gi, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  // quitar marcas genéricas poco útiles solas
+  const skip = new Set(['samsung', 'xiaomi', 'huawei', 'tecno', 'infinix', 'motorola', 'iphone', 'apple', 'redmi', 'galaxy', 'celular', 'telefono', 'teléfono']);
+  const tokens = [];
+  raw.forEach(t => {
+    if (t.length < 2) return;
+    tokens.push(t);
+    // 18p → también 18
+    const m = t.match(/^(\d+)([a-z]+)$/);
+    if (m) tokens.push(m[1]);
+  });
+  return [...new Set(tokens)];
+}
+
+/**
+ * Busca el mejor repuesto en stock para service + device.
+ * Retorna el item de stockData o null.
+ */
+function buscarRepuestoParaOrden(service, device) {
+  const tipos = _tipoRepuestoPorServicio(service);
+  if (!tipos) return null; // servicio sin pieza física
+  if (!stockData || !stockData.length) return null;
+
+  const tokens = _tokensDispositivo(device);
+  let best = null;
+  let bestScore = 0;
+
+  stockData.forEach(item => {
+    const name = (item.name || '').toLowerCase();
+    const cat = (item.cat || '').toLowerCase();
+    const texto = name + ' ' + cat;
+
+    // debe coincidir tipo de repuesto
+    const matchTipo = tipos.some(t => texto.includes(t));
+    if (!matchTipo) return;
+
+    let score = 10; // base por tipo
+    tokens.forEach(tok => {
+      if (texto.includes(tok)) score += tok.length >= 3 ? 5 : 2;
+    });
+    // preferir con stock disponible
+    if (item.qty > 0) score += 3;
+    if (score > bestScore) {
+      bestScore = score;
+      best = item;
+    }
+  });
+
+  // exigir al menos tipo + algo de modelo si hay tokens, o solo tipo si no hay tokens útiles
+  if (!best) return null;
+  if (tokens.length && bestScore < 12) {
+    // solo match de tipo débil — igual devolvemos el de tipo con stock
+    const soloTipo = stockData
+      .filter(item => {
+        const texto = ((item.name || '') + ' ' + (item.cat || '')).toLowerCase();
+        return tipos.some(t => texto.includes(t)) && item.qty > 0;
+      })
+      .sort((a, b) => b.qty - a.qty)[0];
+    return soloTipo || best;
+  }
+  return best;
+}
+
+/**
+ * Verifica stock y descuenta 1 unidad al pasar a Listo.
+ * @returns {{ ok: boolean, item?: object, mensaje: string, sinPieza?: boolean }}
+ */
+async function consumirStockPorOrden(orden, { forzarSinStock = false } = {}) {
+  if (!orden) return { ok: true, mensaje: '', sinPieza: true };
+  if (_yaDescontoStock(orden.id)) {
+    return { ok: true, mensaje: 'Stock ya descontado para esta orden', sinPieza: true };
+  }
+
+  const tipos = _tipoRepuestoPorServicio(orden.service);
+  if (!tipos) {
+    return { ok: true, mensaje: 'Servicio sin repuesto físico', sinPieza: true };
+  }
+
+  // Asegurar stock fresco
+  if (!stockData.length) {
+    try { await loadStock(); } catch (_) {}
+  }
+
+  const item = buscarRepuestoParaOrden(orden.service, orden.device);
+
+  if (!item) {
+    const msg = 'No hay en inventario un repuesto que coincida con "' + orden.service + '" / "' + orden.device + '".';
+    if (forzarSinStock) return { ok: true, mensaje: msg, sinPieza: true };
+    return { ok: false, mensaje: msg + '\n\n¿Marcar Listo de todos modos sin descontar stock?', sinPieza: true };
+  }
+
+  if (item.qty <= 0) {
+    const msg = 'Sin stock de "' + item.name + '" (0 unidades).';
+    if (forzarSinStock) return { ok: true, mensaje: msg, sinPieza: false, item };
+    return { ok: false, mensaje: msg + '\n\n¿Marcar Listo de todos modos?', item, sinPieza: false };
+  }
+
+  try {
+    await StockAPI.ajustar(item.dbId, 'sub', 1);
+    _markStockDeducted(orden.id);
+    await loadStock();
+    if (typeof updateDashboard === 'function') updateDashboard();
+    return {
+      ok: true,
+      item,
+      mensaje: '✓ Stock: −1 ' + item.name + ' (quedan ' + Math.max(0, item.qty - 1) + ')',
+    };
+  } catch (e) {
+    return { ok: false, item, mensaje: 'No se pudo descontar stock: ' + (e.message || e) };
+  }
+}
+
+/** Pre-check sin descontar: ¿hay stock? */
+function verificarStockParaOrden(orden) {
+  const tipos = _tipoRepuestoPorServicio(orden.service);
+  if (!tipos) return { requiere: false, ok: true, mensaje: 'Sin pieza física' };
+  const item = buscarRepuestoParaOrden(orden.service, orden.device);
+  if (!item) return { requiere: true, ok: false, item: null, mensaje: 'No se encontró repuesto compatible en inventario' };
+  if (item.qty <= 0) return { requiere: true, ok: false, item, mensaje: 'Sin stock: ' + item.name };
+  return { requiere: true, ok: true, item, mensaje: item.name + ' (stock: ' + item.qty + ')' };
+}
+
 async function cambiarEstado(id, nuevoStatusRaw) {
   const o = ordersData.find((x) => x.id === id);
   if (!o) return;
 
+  const pasaAListo = nuevoStatusRaw === 'listo' && o.statusRaw !== 'listo';
+
+  if (pasaAListo) {
+    const check = verificarStockParaOrden(o);
+    if (check.requiere && check.ok) {
+      const ok = confirm(
+        'Al marcar LISTO se descontará del stock:\n\n' +
+        '• ' + check.item.name + ' (hay ' + check.item.qty + ')\n' +
+        '• Servicio: ' + o.service + '\n' +
+        '• Equipo: ' + o.device + '\n\n¿Continuar?'
+      );
+      if (!ok) { await loadOrders(); return; }
+    } else if (check.requiere && !check.ok) {
+      const ok = confirm(
+        '⚠️ ' + check.mensaje + '\n\n' +
+        'Servicio: ' + o.service + ' · Equipo: ' + o.device + '\n\n' +
+        '¿Marcar Listo de todos modos SIN descontar stock?'
+      );
+      if (!ok) { await loadOrders(); return; }
+    }
+  }
+
   try {
     await OrdersAPI.cambiarEstado(id, nuevoStatusRaw);
-    await loadOrders(); // también refresca coins/VIP del cliente si quedó "listo"
-    showToast(`✓ Orden ${o.code} → ${ESTADOS_ORDEN.find(e => e.value === nuevoStatusRaw)?.label}`);
+
+    if (pasaAListo) {
+      const check = verificarStockParaOrden(o);
+      if (check.requiere && check.ok) {
+        const r = await consumirStockPorOrden(o);
+        if (r.ok && r.item) showToast(r.mensaje);
+        else if (!r.ok) showToast(r.mensaje, 'error');
+      }
+    }
+
+    await loadOrders();
+    showToast('✓ Orden ' + o.code + ' → ' + (ESTADOS_ORDEN.find(e => e.value === nuevoStatusRaw)?.label || nuevoStatusRaw));
   } catch (e) {
-    alert('No se pudo cambiar el estado: ' + e.message);
-    await loadOrders(); // revierte el select visualmente al estado real
+    showToast('No se pudo cambiar el estado: ' + e.message, 'error');
+    await loadOrders();
   }
 }
 
@@ -1070,15 +1418,16 @@ async function guardarEdicionOrden() {
   const id = document.getElementById('edit-order-id')?.value;
   if (!id) return;
   const clientEdit = document.getElementById('edit-order-client').value.trim();
-  if (!soloLetras(clientEdit)) {
-    alert('El nombre del cliente no puede contener números.');
-    return;
-  }
+  if (!validarNombre(clientEdit, 'Cliente')) return;
+  const phoneEdit = document.getElementById('edit-order-phone').value.trim();
+  if (!validarTelefono(phoneEdit, false)) return;
+  const montoEdit = document.getElementById('edit-order-monto').value;
+  if (montoEdit !== '' && !validarMonto(montoEdit, 'Monto', true)) return;
   const statusVal = document.getElementById('edit-order-status').value;
   try {
     await OrdersAPI.update(id, {
       client: clientEdit,
-      phone: document.getElementById('edit-order-phone').value.trim(),
+      phone: limpiarTelefono(phoneEdit),
       device: document.getElementById('edit-order-device').value.trim(),
       service: document.getElementById('edit-order-service').value.trim(),
       monto: parseFloat(document.getElementById('edit-order-monto').value) || 0,
@@ -1087,6 +1436,18 @@ async function guardarEdicionOrden() {
       tecnico_id: document.getElementById('edit-order-tech').value || null,
       sucursal_id: document.getElementById('edit-order-sucursal').value || null,
     });
+    const nuevoStatus = mapStatusToApi(statusVal);
+    const pasabaAListo = nuevoStatus === 'listo' && (ordersData.find(x => String(x.id) === String(id)) || {}).statusRaw !== 'listo';
+    if (pasabaAListo) {
+      const ordenLocal = { ...ordersData.find(x => String(x.id) === String(id)), service: document.getElementById('edit-order-service').value.trim(), device: document.getElementById('edit-order-device').value.trim(), id: id };
+      const check = verificarStockParaOrden(ordenLocal);
+      if (check.requiere && check.ok) {
+        const r = await consumirStockPorOrden(ordenLocal);
+        if (r.ok && r.item) showToast(r.mensaje);
+      } else if (check.requiere && !check.ok) {
+        showToast('⚠️ ' + check.mensaje, 'error');
+      }
+    }
     closeModal();
     await loadOrders();
     showToast('✓ Orden actualizada');
@@ -1100,24 +1461,22 @@ async function guardarOrden() {
   const phone = document.getElementById('modal-phone').value.trim();
   const device = document.getElementById('modal-device').value.trim();
   const service = document.getElementById('modal-service').value;
-  const monto = parseFloat(document.getElementById('modal-monto').value) || 0;
+  const montoRaw = document.getElementById('modal-monto').value;
+  const monto = parseFloat(montoRaw) || 0;
   const obs = document.getElementById('modal-obs').value.trim();
   const sucursal_id = document.getElementById('modal-branch').value || null;
   const tecnico_id = document.getElementById('modal-tech').value || null;
 
-  if (!client || !device || !service) {
-    alert('Complete: Cliente, Equipo y Servicio.');
-    return;
-  }
-  if (!soloLetras(client)) {
-    alert('El nombre del cliente no puede contener números.');
-    return;
-  }
+  if (!validarNombre(client, 'Cliente')) return;
+  if (!validarTelefono(phone, false)) return;
+  if (!device) { showToast('Equipo es obligatorio', 'error'); return; }
+  if (!service) { showToast('Servicio es obligatorio', 'error'); return; }
+  if (montoRaw !== '' && !validarMonto(montoRaw, 'Monto estimado', true)) return;
 
   try {
     await OrdersAPI.create({
       client,
-      phone,
+      phone: limpiarTelefono(phone) || null,
       device,
       service,
       sucursal_id,
@@ -1128,8 +1487,9 @@ async function guardarOrden() {
     closeModal();
     await loadOrders();
     await loadClientes();
+    showToast('✓ Orden creada correctamente');
   } catch (e) {
-    alert(e.message);
+    showToast(e.message || 'Error al crear orden', 'error');
   }
 }
 
@@ -1271,7 +1631,10 @@ function renderStock(data) {
         <td>Bs ${fmtMonto(s.precio)}</td>
         <td><div class="stock-bar-wrap"><div class="stock-bg"><div class="stock-fill-inner" style="width:${pct}%;background:${color}"></div></div></td>
         <td>${stockBadge(s.qty, s.min)}</td>
-        <td><button class="btn-sm btn-sm-primary" onclick="editarRepuesto(${s.dbId})">Editar</button></td>
+        <td style="white-space:nowrap">
+          ${esAdminOSuper() ? `<button class="btn-sm btn-sm-primary" onclick="editarRepuesto(${s.dbId})">Editar</button>
+          <button class="btn-sm" onclick="ajustarStock(${s.dbId})" title="Ajustar cantidad">±</button>` : '<span style="color:var(--gray-400);font-size:12px">Solo lectura</span>'}
+        </td>
       </tr>`;
     })
     .join('');
@@ -1288,6 +1651,8 @@ function _buscarRepuesto(idOrCode) {
 }
 
 function editarRepuesto(idOrCode) {
+  if (!esAdminOSuper()) { showToast('Solo Admin / Super Admin pueden modificar el stock', 'error'); return; }
+
   const s = _buscarRepuesto(idOrCode);
   if (!s) return;
 
@@ -1302,6 +1667,8 @@ function editarRepuesto(idOrCode) {
 }
 
 async function guardarEdicionRepuesto() {
+  if (!esAdminOSuper()) { showToast('Solo Admin / Super Admin pueden modificar el stock', 'error'); return; }
+
   const id = document.getElementById('edit-rep-id').value;
   const name = document.getElementById('edit-rep-name').value.trim();
   const categoria = document.getElementById('edit-rep-cat').value.trim();
@@ -1319,14 +1686,17 @@ async function guardarEdicionRepuesto() {
     await loadStock();
     if (typeof renderStockModal === 'function') renderStockModal();
     closeModal();
+    if (typeof updateDashboard === 'function') updateDashboard();
     showToast('✓ Repuesto actualizado');
   } catch (e) {
-    alert('No se pudo actualizar: ' + e.message);
+    showToast('No se pudo actualizar: ' + e.message, 'error');
   }
 }
 
 // ===== AJUSTE RÁPIDO DE STOCK (+/-/=) =====
 function ajustarStock(idOrCode) {
+  if (!esAdminOSuper()) { showToast('Solo Admin / Super Admin pueden modificar el stock', 'error'); return; }
+
   const s = _buscarRepuesto(idOrCode);
   if (!s) return;
 
@@ -1342,14 +1712,20 @@ function ajustarStock(idOrCode) {
 }
 
 async function guardarAjusteStock() {
+  if (!esAdminOSuper()) { showToast('Solo Admin / Super Admin pueden modificar el stock', 'error'); return; }
+
   const id = document.getElementById('adj-id').value;
   const operacion = document.getElementById('adj-operacion').value;
   const cantidad = parseInt(document.getElementById('adj-cantidad').value, 10);
   const min = parseInt(document.getElementById('adj-min').value, 10) || 1;
   const precio = parseFloat(document.getElementById('adj-precio').value) || 0;
 
-  if (isNaN(cantidad) || cantidad < 0) {
-    alert('Ingresa una cantidad válida.');
+  if (isNaN(cantidad) || cantidad < 0 || !Number.isInteger(cantidad)) {
+    showToast('Cantidad: número entero ≥ 0', 'error');
+    return;
+  }
+  if (operacion !== 'set' && cantidad === 0) {
+    showToast('Para sumar/restar la cantidad debe ser mayor a 0', 'error');
     return;
   }
 
@@ -1365,31 +1741,66 @@ async function guardarAjusteStock() {
       selectStockItem(stockDetailId); // refresca el panel de detalle si estaba abierto
     }
     closeModal();
+    if (typeof updateDashboard === 'function') updateDashboard();
     showToast('✓ Stock ajustado');
   } catch (e) {
-    alert('No se pudo ajustar el stock: ' + e.message);
+    showToast('No se pudo ajustar el stock: ' + e.message, 'error');
   }
 }
 
 async function guardarRepuesto() {
+  if (!esAdminOSuper()) { showToast('Solo Admin / Super Admin pueden modificar el stock', 'error'); return; }
+
   const name = document.getElementById('new-rep-name').value.trim();
   const cat = document.getElementById('new-rep-cat').value.trim();
-  const qty = parseInt(document.getElementById('new-rep-qty').value) || 0;
-  const min = parseInt(document.getElementById('new-rep-min').value) || 1;
-  const precio = parseFloat(document.getElementById('new-rep-precio').value) || 0;
-  if (!name || !cat) {
-    alert('Complete nombre y categoría.');
-    return;
+  const qtyRaw = document.getElementById('new-rep-qty').value;
+  const minRaw = document.getElementById('new-rep-min').value;
+  const precioRaw = document.getElementById('new-rep-precio').value;
+  const qty = parseInt(qtyRaw, 10);
+  const min = parseInt(minRaw, 10);
+  const precio = parseFloat(precioRaw);
+
+  if (!name) { showToast('Nombre del repuesto es obligatorio', 'error'); return; }
+  if (!cat) { showToast('Categoría es obligatoria', 'error'); return; }
+  if (qtyRaw === '' || isNaN(qty) || qty < 0 || !Number.isInteger(qty)) {
+    showToast('Cantidad: número entero ≥ 0', 'error'); return;
   }
+  if (minRaw === '' || isNaN(min) || min < 1 || !Number.isInteger(min)) {
+    showToast('Stock mínimo: entero ≥ 1', 'error'); return;
+  }
+  if (precioRaw !== '' && (isNaN(precio) || precio < 0)) {
+    showToast('Precio: número ≥ 0', 'error'); return;
+  }
+
+  const precioFinal = isNaN(precio) ? 0 : precio;
+  const avisoQty = qty === 0
+    ? '\n\n⚠️ La cantidad inicial es 0. El producto quedará sin stock hasta que hagas un ajuste.'
+    : '\n\nCantidad inicial: ' + qty;
+
+  const ok = confirm(
+    '¿Confirmar agregar al inventario?\n\n' +
+    '• Repuesto: ' + name + '\n' +
+    '• Categoría: ' + cat + '\n' +
+    '• Stock mínimo: ' + min + '\n' +
+    '• Precio: Bs ' + precioFinal +
+    avisoQty
+  );
+  if (!ok) return;
+
   try {
-    await StockAPI.create({ name, categoria: cat, qty, min, precio });
+    await StockAPI.create({ name, categoria: cat, qty, min, precio: precioFinal });
     ['new-rep-name', 'new-rep-cat', 'new-rep-qty', 'new-rep-min', 'new-rep-precio'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
+    closeModal();
     await loadStock();
+    if (typeof updateDashboard === 'function') updateDashboard();
+    showToast(qty === 0
+      ? '✓ Repuesto agregado (cantidad 0 — ajusta el stock cuando llegue)'
+      : '✓ Repuesto agregado al inventario');
   } catch (e) {
-    alert(e.message);
+    showToast(e.message || 'Error al agregar repuesto', 'error');
   }
 }
 
@@ -1437,19 +1848,38 @@ function renderVentas() {
 async function registrarVenta() {
   const client = document.getElementById('venta-cliente')?.value.trim() || '';
   const detail = document.getElementById('venta-detalle')?.value.trim() || '';
-  const monto = parseFloat(document.getElementById('venta-monto')?.value) || 0;
+  const montoRaw = document.getElementById('venta-monto')?.value;
+  const monto = parseFloat(montoRaw) || 0;
   const pagoRaw = (document.getElementById('venta-pago')?.value || 'efectivo').toLowerCase();
-  const pago = pagoRaw.includes('qr') ? 'qr' : 'efectivo';
-  if (!detail || !monto) {
-    alert('Complete detalle y monto.');
-    return;
-  }
+  const pago = pagoRaw.includes('qr') ? 'qr' : (pagoRaw.includes('transfer') ? 'transferencia' : 'efectivo');
+  const techSel = document.getElementById('venta-tech');
+  const tecnico_id = techSel && techSel.value ? techSel.value : null;
+  const sucSel = document.getElementById('venta-sucursal');
+  const sucursal_id = sucSel && sucSel.value ? sucSel.value : null;
+
+  if (client && !validarNombre(client, 'Cliente')) return;
+  if (!detail) { showToast('Detalle es obligatorio', 'error'); return; }
+  if (!validarMonto(montoRaw, 'Monto', false)) return;
+
   try {
-    await VentasAPI.create({ client: client || null, detail, monto, pago });
+    await VentasAPI.create({
+      client: client || null,
+      detail,
+      monto,
+      pago,
+      tecnico_id,
+      sucursal_id,
+    });
+    ['venta-cliente', 'venta-detalle', 'venta-monto'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
     await loadVentas();
-    alert('Venta registrada.');
+    if (typeof updateDashboard === 'function') updateDashboard();
+    if (typeof renderReportesCompletos === 'function') renderReportesCompletos();
+    showToast('✓ Venta registrada');
   } catch (e) {
-    alert(e.message);
+    showToast(e.message || 'Error al registrar venta', 'error');
   }
 }
 
@@ -1471,18 +1901,32 @@ function renderClientes(data) {
 function renderRecibosHistorial() {
   const el = document.getElementById('recibos-body');
   if (!el) return;
+  const n = (recibosData || []).length;
+  const countEl = document.getElementById('recibo-count');
+  if (countEl) {
+    countEl.textContent = n + ' recibo' + (n === 1 ? '' : 's');
+  }
+  if (!n) {
+    el.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:24px">No se han generado recibos aún</td></tr>';
+    return;
+  }
   el.innerHTML = recibosData
     .map(
-      (r) => `<tr>
+      (r) => {
+        const ordenLabel = r.orden
+          ? (String(r.orden).startsWith('#') ? r.orden : '#' + r.orden)
+          : '—';
+        return `<tr>
       <td><code class="code-tag">${r.numRecibo}</code></td>
-      <td>${r.orden || '—'}</td><td>${r.cliente}</td><td>${r.servicio}</td>
+      <td>${ordenLabel}</td><td>${r.cliente}</td><td>${r.servicio}</td>
       <td>Bs ${fmtMonto(r.monto)}</td><td>${r.pago}</td>
       <td>${r.techName}</td><td>${r.hora}</td>
       <td>
         <button class="btn-sm" onclick="mostrarVistaPreviaRecibo(${r.id})">Ver</button>
         <button class="btn-sm" onclick="abrirEditarRecibo(${r.id})">Editar</button>
       </td>
-    </tr>`
+    </tr>`;
+      }
     )
     .join('');
 }
@@ -1509,6 +1953,9 @@ async function generarRecibo() {
   const orden_id = document.getElementById('recibo-orden').value || null;
   const cliente = document.getElementById('recibo-cliente').value.trim();
   const telefono = document.getElementById('recibo-telefono').value.trim();
+
+  if (!validarNombre(cliente, 'Cliente')) return;
+  if (!validarTelefono(telefono, false)) return;
   const equipo = document.getElementById('recibo-equipo').value.trim();
   const servicio = document.getElementById('recibo-servicio').value.trim();
   const monto = parseFloat(document.getElementById('recibo-monto').value) || 0;
@@ -1556,20 +2003,18 @@ async function guardarCliente() {
   const phone = document.getElementById('new-cli-phone').value.trim();
   const sucursal_id = document.getElementById('new-cli-branch').value || null;
 
-  if (!name || !phone) {
-    alert('Completa Nombre y Teléfono.');
-    return;
-  }
+  if (!validarNombre(name, 'Nombre del cliente')) return;
+  if (!validarTelefono(phone, true)) return;
 
   try {
-    const cliente = await ClientesAPI.create({ name, phone, sucursal_id });
-    await loadClientes();
+    const cliente = await ClientesAPI.create({ name, phone: limpiarTelefono(phone), sucursal_id });
     document.getElementById('new-cli-name').value = '';
     document.getElementById('new-cli-phone').value = '';
     closeModal();
-    showToast(`✓ Cliente "${cliente.name}" registrado (${cliente.code})`);
+    await loadClientes();
+    showToast('✓ Cliente "' + cliente.name + '" registrado (' + (cliente.code || '') + ')');
   } catch (e) {
-    alert('No se pudo registrar el cliente: ' + e.message);
+    showToast(e.message || 'Error al registrar cliente', 'error');
   }
 }
 
@@ -1627,6 +2072,8 @@ function openModal(tipo) {
     'editar-recibo': 'modal-editar-recibo',
     'editar-repuesto': 'modal-editar-repuesto',
     'ajuste-stock': 'modal-ajuste-stock',
+    repuesto: 'modal-repuesto',
+    'historial-add': 'modal-historial-add',
   };
   const id = map[tipo] || tipo;
   const el = document.getElementById(id);
@@ -1660,5 +2107,967 @@ async function tryRestoreSession() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  tryRestoreSession();
+  // Al refrescar SIEMPRE vuelve al login (no restaura sesión)
+  clearSession();
+  currentUser = null;
+  const app = document.getElementById('app');
+  const login = document.getElementById('login-screen');
+  if (app) app.classList.add('hidden');
+  if (login) login.classList.remove('hidden');
 });
+
+
+
+
+// ==========================================
+// FILTRO DE REPORTES (botones Generar / Exportar)
+// ==========================================
+function generarReporte() {
+  const desde = document.getElementById('reporte-desde')?.value || '';
+  const hasta = document.getElementById('reporte-hasta')?.value || '';
+  if (desde && hasta && desde > hasta) {
+    showToast('La fecha "Desde" no puede ser mayor que "Hasta"', 'error');
+    return;
+  }
+  if (typeof renderReportesCompletos === 'function') {
+    renderReportesCompletos(desde || null, hasta || null);
+  }
+  showToast('✓ Reporte generado' + (desde || hasta ? ' (filtrado por fechas)' : ' (todos los datos)'));
+}
+
+function exportarReportePDF() {
+  // Impresión limpia del panel de reportes
+  const panel = document.getElementById('panel-reportes');
+  if (!panel) { showToast('No se encontró el panel de reportes', 'error'); return; }
+  const win = window.open('', '_blank');
+  if (!win) { showToast('Permite ventanas emergentes para exportar', 'error'); return; }
+  win.document.write(`<!DOCTYPE html><html><head><title>Reporte MiCel</title>
+    <style>
+      body{font-family:system-ui,sans-serif;padding:24px;color:#111}
+      h1{font-size:20px;margin:0 0 8px} h2{font-size:14px;margin:18px 0 8px;color:#333}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
+      th{background:#f3f4f6}
+      .metric{display:inline-block;margin:8px 16px 8px 0;padding:10px 14px;border:1px solid #e5e7eb;border-radius:8px}
+      .metric b{display:block;font-size:18px}
+      @media print{button{display:none}}
+    </style></head><body>
+    <h1>MiCel — Reporte operativo</h1>
+    <p style="color:#666;font-size:12px">Generado: ${new Date().toLocaleString('es-BO')}</p>
+    ${panel.innerHTML}
+    <script>window.onload=function(){window.print()}<\/script>
+    </body></html>`);
+  win.document.close();
+  showToast('✓ Listo para imprimir / guardar PDF');
+}
+
+// ==========================================
+
+
+
+
+// ---- Amnesis: múltiples fotos (biblioteca de reparaciones) ----
+window._haFiles = []; // File[] pendientes de subir
+
+function previewHistorialImgs(event) {
+  const input = event.target;
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+
+  const max = 12;
+  const combined = (window._haFiles || []).concat(files);
+  if (combined.length > max) {
+    showToast('Máximo ' + max + ' fotos por entrada', 'error');
+    window._haFiles = combined.slice(0, max);
+  } else {
+    window._haFiles = combined;
+  }
+  _renderHaPreviewGallery();
+  // permitir volver a elegir los mismos archivos
+  input.value = '';
+}
+
+function previewHistorialImg(event) {
+  // compatibilidad con el handler viejo de extensions
+  previewHistorialImgs(event);
+}
+
+function _renderHaPreviewGallery() {
+  const gal = document.getElementById('ha-preview-gallery');
+  const cnt = document.getElementById('ha-preview-count');
+  if (!gal) return;
+  const files = window._haFiles || [];
+  gal.innerHTML = files.map(function(f, i) {
+    const url = URL.createObjectURL(f);
+    return '<div style="position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--gray-200)">' +
+      '<img src="' + url + '" style="width:100%;height:100%;object-fit:cover" alt="">' +
+      '<button type="button" onclick="quitarHaFoto(' + i + ')" title="Quitar" style="position:absolute;top:2px;right:2px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1">×</button>' +
+    '</div>';
+  }).join('');
+  if (cnt) cnt.textContent = files.length ? (files.length + ' foto' + (files.length > 1 ? 's' : '') + ' seleccionada' + (files.length > 1 ? 's' : '')) : '';
+}
+
+function quitarHaFoto(index) {
+  window._haFiles = (window._haFiles || []).filter(function(_, i) { return i !== index; });
+  _renderHaPreviewGallery();
+}
+
+function limpiarHaFotos() {
+  window._haFiles = [];
+  _renderHaPreviewGallery();
+  const input = document.getElementById('ha-file-input');
+  if (input) input.value = '';
+}
+
+// =====================================================================
+// MiCel AMNESIS — Historial real (API /historial)
+// Sobrescribe el mock de extensions.js
+// =====================================================================
+const HistorialAPI = {
+  list: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return api('/historial' + (q ? '?' + q : ''));
+  },
+  create: async (body, fotoFiles) => {
+    // body: { equipo, descripcion } — fotoFiles: File | File[] | null
+    const files = !fotoFiles ? [] : (Array.isArray(fotoFiles) ? fotoFiles : [fotoFiles]);
+    if (files.length) {
+      const fd = new FormData();
+      fd.append('equipo', body.equipo);
+      if (body.descripcion) fd.append('descripcion', body.descripcion);
+      files.forEach(function(f) { fd.append('fotos[]', f); });
+      // compat: también manda la primera como "foto"
+      fd.append('foto', files[0]);
+      const headers = { Accept: 'application/json' };
+      const token = getToken();
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(API_BASE + '/historial', { method: 'POST', headers, body: fd });
+      if (res.status === 401) { clearSession(); window.location.reload(); throw new Error('Sesión expirada'); }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || data.error || ('Error ' + res.status));
+      return data;
+    }
+    return api('/historial', { method: 'POST', body: JSON.stringify(body) });
+  },
+};
+
+function normalizeHistorial(h) {
+  const tech = h.tecnico || {};
+  const fecha = h.created_at ? new Date(h.created_at) : null;
+  const base = API_BASE.replace(/\/api$/, '');
+  function toUrl(p) {
+    if (!p) return null;
+    if (String(p).startsWith('http') || String(p).startsWith('data:')) return p;
+    return base + '/storage/' + p;
+  }
+  let fotosUrl = Array.isArray(h.fotos_url) ? h.fotos_url.filter(Boolean) : [];
+  if (!fotosUrl.length && Array.isArray(h.fotos)) {
+    fotosUrl = h.fotos.map(toUrl).filter(Boolean);
+  }
+  if (!fotosUrl.length && h.foto_url) fotosUrl = [h.foto_url];
+  if (!fotosUrl.length && h.foto_path) fotosUrl = [toUrl(h.foto_path)].filter(Boolean);
+  return {
+    id: 'H-' + h.id,
+    dbId: h.id,
+    titulo: h.equipo || 'Reparación',
+    cliente: '',
+    equipo: h.equipo || '—',
+    servicio: '',
+    techCode: tech.code || '',
+    techName: tech.name || '—',
+    branch: tech.sucursal || '',
+    desc: h.descripcion || '',
+    foto: fotosUrl[0] || null,
+    fotos: fotosUrl,
+    fecha: fecha ? fecha.toLocaleDateString('es-BO') : '—',
+    hora: fecha ? fecha.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '',
+    qrData: h.qr_data || String(h.id),
+    rol: tech.rol ? mapRol(tech.rol) : (tech.code ? 'Técnico' : '—'),
+  };
+}
+
+async function loadHistorial() {
+  try {
+    const list = await HistorialAPI.list();
+    window.historialData = (list || []).map(normalizeHistorial);
+    // también variable libre de extensions
+    if (typeof historialData !== 'undefined') {
+      try { historialData.length = 0; historialData.push(...window.historialData); } catch (_) {}
+    }
+    if (typeof renderHistorial === 'function') renderHistorial();
+  } catch (e) {
+    console.error('Historial:', e);
+    window.historialData = window.historialData || [];
+  }
+}
+
+/** Guarda entrada real en la API (reemplaza el mock de extensions) */
+async function guardarHistorialEntry() {
+  const titulo   = document.getElementById('ha-titulo')?.value.trim() || '';
+  const cliente  = document.getElementById('ha-cliente')?.value.trim() || '';
+  const equipo   = document.getElementById('ha-equipo')?.value.trim() || '';
+  const servicio = document.getElementById('ha-servicio')?.value.trim() || '';
+  const desc     = document.getElementById('ha-desc')?.value.trim() || '';
+  const imgData  = document.getElementById('ha-img-data')?.value || '';
+
+  const equipoFinal = equipo || titulo;
+  if (!equipoFinal) {
+    showToast('Equipo / título es obligatorio', 'error');
+    return;
+  }
+  if (cliente && !validarNombre(cliente, 'Cliente')) return;
+
+  const partes = [];
+  if (titulo && titulo !== equipoFinal) partes.push('Título: ' + titulo);
+  if (cliente) partes.push('Cliente: ' + cliente);
+  if (servicio) partes.push('Servicio: ' + servicio);
+  if (desc) partes.push(desc);
+  const descripcion = partes.join(' | ') || null;
+
+  let fotoFiles = (window._haFiles || []).slice();
+  // compat: si quedó una sola en ha-img-data (extensions viejo)
+  if (!fotoFiles.length && imgData && imgData.startsWith('data:')) {
+    try {
+      const blob = await (await fetch(imgData)).blob();
+      fotoFiles = [new File([blob], 'historial.jpg', { type: blob.type || 'image/jpeg' })];
+    } catch (_) {}
+  }
+
+  try {
+    await HistorialAPI.create({ equipo: equipoFinal, descripcion }, fotoFiles);
+    closeModal();
+    await loadHistorial();
+    showToast('✓ Entrada guardada' + (fotoFiles.length ? ' con ' + fotoFiles.length + ' foto(s)' : ''));
+    ['ha-titulo','ha-cliente','ha-equipo','ha-servicio','ha-desc'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    if (typeof limpiarHaFotos === 'function') limpiarHaFotos();
+  } catch (e) {
+    showToast(e.message || 'Error al guardar historial', 'error');
+  }
+}
+
+// Reemplaza renderHistorial del mock para mostrar rol del técnico
+function renderHistorial() {
+  const grid  = document.getElementById('historial-grid');
+  const empty = document.getElementById('historial-empty');
+  if (!grid) return;
+
+  const data = (typeof historialData !== 'undefined' && historialData.length)
+    ? historialData
+    : (window.historialData || []);
+
+  const q      = (document.getElementById('historial-search')?.value || '').toLowerCase();
+  const branch = document.getElementById('historial-filter-branch')?.value || '';
+
+  const filtered = data.filter(h => {
+    const matchQ = !q ||
+      (h.titulo || '').toLowerCase().includes(q) ||
+      (h.cliente || '').toLowerCase().includes(q) ||
+      (h.equipo || '').toLowerCase().includes(q) ||
+      (h.techName || '').toLowerCase().includes(q) ||
+      (h.desc || '').toLowerCase().includes(q);
+    const matchB = !branch || String(h.branch) === String(branch) ||
+      (window._sucursales || []).some(s => String(s.id) === String(branch) && s.nombre === h.branch);
+    return matchQ && matchB;
+  });
+
+  if (!filtered.length) {
+    grid.innerHTML = '';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  grid.innerHTML = filtered.map(h => {
+    const fotos = (h.fotos && h.fotos.length) ? h.fotos : (h.foto ? [h.foto] : []);
+    const imgHtml = fotos.length
+      ? '<div style="position:relative;width:100%;height:100%">' +
+          '<img src="' + fotos[0] + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:8px;cursor:pointer" onclick="verGaleriaHistorial(' + h.dbId + ')">' +
+          (fotos.length > 1
+            ? '<span style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;padding:2px 8px;border-radius:999px">+' + (fotos.length - 1) + ' fotos</span>'
+            : '') +
+        '</div>'
+      : '<div class="historial-img-placeholder">🔧</div>';
+    const techLabel = h.techName
+      ? (h.techName + (h.rol ? ' · ' + h.rol : '') + (h.techCode ? ' (' + h.techCode + ')' : ''))
+      : '—';
+    return '<div class="historial-card">' +
+      '<div class="historial-img-wrap">' + imgHtml + '</div>' +
+      '<div class="historial-card-body">' +
+        '<div class="historial-card-title">' + (h.titulo || h.equipo) + '</div>' +
+        '<div class="historial-card-meta">' +
+          '<span>' + (h.fecha || '') + (h.hora ? ' · ' + h.hora : '') + '</span>' +
+          '<span>' + techLabel + '</span>' +
+        '</div>' +
+        (h.desc ? '<div class="historial-card-desc">' + h.desc + '</div>' : '') +
+      '</div>' +
+      '<div class="historial-card-footer">' +
+        '<button class="btn-sm btn-sm-primary" onclick="mostrarQRDesdeHistorial(\'' + String(h.dbId || h.id).replace(/'/g, '') + '\')">QR</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function filterHistorial(q) {
+  renderHistorial();
+}
+
+function mostrarQRDesdeHistorial(id) {
+  const data = (typeof historialData !== 'undefined' && historialData.length)
+    ? historialData
+    : (window.historialData || []);
+  const h = data.find(x => String(x.dbId) === String(id) || String(x.id) === String(id));
+  if (!h) { showToast('Entrada no encontrada', 'error'); return; }
+  if (typeof mostrarQR === 'function') {
+    mostrarQR({
+      titulo: h.titulo || h.equipo,
+      id: h.id,
+      fecha: h.fecha,
+      branch: h.branch || h.techName || '',
+      qrData: h.qrData,
+    });
+  }
+}
+
+
+// DASHBOARD 100% REAL
+// ==========================================
+function updateDashboard() {
+  const activas = ordersData.filter(o => o.statusRaw !== 'listo').length;
+  const hoy = new Date().toLocaleDateString('es-BO');
+  const ingresaronHoy = ordersData.filter(o => o.date === hoy).length;
+
+  const ingresosOrdenes = ordersData
+    .filter(o => o.statusRaw === 'listo')
+    .reduce((s, o) => s + (parseFloat(o.monto) || 0), 0);
+  const ingresosVentas = (ventasHoy || []).reduce((s, v) => s + (parseFloat(v.monto) || 0), 0);
+  const ingresosCel = (celularesData || []).reduce((s, v) => s + (parseFloat(v.venta) || 0), 0);
+  const ingresosMes = ingresosOrdenes + ingresosVentas + ingresosCel;
+
+  const criticos = stockData.filter(s => s.qty <= s.min);
+  const stockCritico = criticos.length;
+  const clientesAtendidos = new Set(ordersData.map(o => o.client)).size;
+
+  const cards = document.querySelectorAll('#panel-dashboard .metric-card');
+  if (cards[0]) {
+    const val = cards[0].querySelector('.metric-value');
+    if (val) val.textContent = activas;
+    const trend = cards[0].querySelector('.metric-trend');
+    if (trend) trend.textContent = '↑ ' + ingresaronHoy + ' ingresaron hoy';
+  }
+  if (cards[1]) {
+    const val = cards[1].querySelector('.metric-value');
+    if (val) val.textContent = 'Bs ' + fmtMonto(ingresosMes);
+  }
+  if (cards[2]) {
+    const val = cards[2].querySelector('.metric-value');
+    if (val) {
+      val.textContent = stockCritico;
+      val.classList.toggle('danger', stockCritico > 0);
+    }
+  }
+  if (cards[3]) {
+    const val = cards[3].querySelector('.metric-value');
+    if (val) val.textContent = clientesAtendidos;
+  }
+
+  const alertsBox = document.querySelector('#panel-dashboard .alerts');
+  if (alertsBox) {
+    let html = '';
+    if (criticos.length) {
+      const lista = criticos.slice(0, 5).map(s => s.name + ' (' + s.qty + ')').join(' · ');
+      html += '<div class="alert alert-warn">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
+        '<strong>Stock crítico:</strong> ' + lista +
+        '</div>';
+    }
+    const listos = ordersData.filter(o => o.statusRaw === 'listo').length;
+    if (listos) {
+      html += '<div class="alert alert-info">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+        listos + ' órdenes listos para entrega' +
+        '</div>';
+    }
+    if (!html) html = '<div class="alert alert-info">Todo en orden ✓</div>';
+    alertsBox.innerHTML = html;
+  }
+
+  if (typeof renderDashOrders === 'function') renderDashOrders();
+}
+
+// ==========================================
+// REPORTES 100% REALES (ingresos + servicios + técnicos)
+// ==========================================
+function renderReportesCompletos(desde, hasta) {
+  function enRango(fechaStr) {
+    if (!desde && !hasta) return true;
+    if (!fechaStr || fechaStr === '—') return !desde && !hasta;
+    let d = null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(fechaStr)) d = fechaStr.slice(0, 10);
+    else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fechaStr)) {
+      const p = fechaStr.split('/');
+      d = p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
+    }
+    if (!d) return true;
+    if (desde && d < desde) return false;
+    if (hasta && d > hasta) return false;
+    return true;
+  }
+
+  // Solo órdenes LISTAS cuentan como ingreso realizado
+  const ordenesFiltradas = ordersData.filter(o => o.statusRaw === 'listo' && enRango(o.date));
+  const todasOrdenesRango = ordersData.filter(o => enRango(o.date));
+  const celFiltradas = (celularesData || []).filter(v => enRango(v.fecha));
+  const ventasFiltradas = (ventasHoy || []); // del día (API no trae fecha completa aquí)
+
+  // GANANCIA NETA:
+  // - Celulares: venta - compra (margen real)
+  // - Servicios/ventas: el monto cobrado (no hay costo de repuesto registrado → se toma como neto operativo)
+  const gananciaCel = celFiltradas.reduce((s, v) => s + (parseFloat(v.ganancia) || 0), 0);
+  const ingresosServicios = ordenesFiltradas.reduce((s, o) => s + (parseFloat(o.monto) || 0), 0);
+  const ingresosVentasRapidas = ventasFiltradas.reduce((s, v) => s + (parseFloat(v.monto) || 0), 0);
+  const gananciaNeta = gananciaCel + ingresosServicios + ingresosVentasRapidas;
+
+  const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setTxt('rep-metric-servicios', String(ordenesFiltradas.length));
+  setTxt('rep-metric-servicios-trend', todasOrdenesRango.length + ' órdenes en el rango');
+
+  setTxt('rep-metric-ganancia', (gananciaNeta < 0 ? '− ' : '') + 'Bs ' + fmtMonto(Math.abs(gananciaNeta)));
+  setTxt('rep-metric-ganancia-trend', 'Cel Bs ' + fmtMonto(gananciaCel) + ' · Serv Bs ' + fmtMonto(ingresosServicios + ingresosVentasRapidas));
+  const ganEl = document.getElementById('rep-metric-ganancia');
+  if (ganEl) ganEl.style.color = gananciaNeta >= 0 ? '' : 'var(--danger)';
+
+  const ticket = ordenesFiltradas.length
+    ? (ingresosServicios / ordenesFiltradas.length)
+    : 0;
+  setTxt('rep-metric-ticket', 'Bs ' + fmtMonto(ticket));
+  setTxt('rep-metric-ticket-trend', ordenesFiltradas.length ? 'promedio por servicio listo' : 'sin servicios listos');
+
+  const tasa = todasOrdenesRango.length
+    ? Math.round((ordenesFiltradas.length / todasOrdenesRango.length) * 100)
+    : 0;
+  setTxt('rep-metric-cierre', tasa + '%');
+  setTxt('rep-metric-cierre-trend', ordenesFiltradas.length + ' listas de ' + todasOrdenesRango.length + ' totales');
+
+  // ---- Servicios más frecuentes (sobre TODAS las órdenes del rango, no solo listo) ----
+  const contador = {};
+  todasOrdenesRango.forEach(o => {
+    const s = (o.service || 'Otro').trim();
+    if (!contador[s]) contador[s] = { cant: 0, ingresos: 0 };
+    contador[s].cant++;
+    // ingresos solo de las que están listas / con monto
+    if (o.statusRaw === 'listo' || (parseFloat(o.monto) || 0) > 0) {
+      contador[s].ingresos += parseFloat(o.monto) || 0;
+    }
+  });
+  const serviciosOrdenados = Object.entries(contador)
+    .sort((a, b) => b[1].cant - a[1].cant)
+    .slice(0, 10);
+  const maxCant = (serviciosOrdenados[0] && serviciosOrdenados[0][1].cant) || 1;
+
+  const tbodyServ = document.getElementById('report-servicios-body');
+  if (tbodyServ) {
+    tbodyServ.innerHTML = serviciosOrdenados.length
+      ? serviciosOrdenados.map(function(pair) {
+          var nombre = pair[0], d = pair[1];
+          var pct = Math.round((d.cant / maxCant) * 100);
+          return '<tr>' +
+            '<td>' + nombre + '</td>' +
+            '<td>' + d.cant + '</td>' +
+            '<td>Bs ' + fmtMonto(d.ingresos) + '</td>' +
+            '<td><div class="bar-wrap"><div class="bar-fill" style="width:' + pct + '%"></div><span>' + pct + '%</span></div></td>' +
+            '</tr>';
+        }).join('')
+      : '<tr><td colspan="4" style="text-align:center;color:var(--gray-400)">Sin servicios en el rango</td></tr>';
+  }
+
+  // ---- Rendimiento por técnico (órdenes listo + rol) ----
+  const tbodyTech = document.getElementById('report-tech-body');
+  if (tbodyTech) {
+    const porTech = {};
+    // base: API reporte
+    (window._reporteTecnicos || []).forEach(t => {
+      porTech[t.code || t.name] = {
+        code: t.code || '—',
+        name: t.name || '—',
+        ordenes: t.ordenes_completadas || 0,
+        ingresos: parseFloat(t.ingresos) || 0,
+        comision: parseFloat(t.comision) || 0,
+        branch: t.branch || t.sucursal || '—',
+        rol: 'Técnico',
+      };
+    });
+    // si hay filtro de fechas, recalcular desde órdenes
+    if (desde || hasta) {
+      Object.keys(porTech).forEach(k => { porTech[k].ordenes = 0; porTech[k].ingresos = 0; });
+      ordenesFiltradas.forEach(o => {
+        const key = o.techCode || o.techName || '—';
+        if (!porTech[key]) {
+          porTech[key] = { code: o.techCode || '—', name: o.techName || '—', ordenes: 0, ingresos: 0, comision: 0, branch: o.branch || '—', rol: 'Técnico' };
+        }
+        porTech[key].ordenes++;
+        porTech[key].ingresos += parseFloat(o.monto) || 0;
+      });
+    }
+    // enriquecer con rol real de usuarios
+    (tecnicos || []).forEach(t => {
+      const key = t.code;
+      if (porTech[key]) porTech[key].rol = t.rol || mapRol(t.rolRaw) || 'Técnico';
+    });
+
+    const lista = Object.values(porTech).sort((a, b) => b.ordenes - a.ordenes);
+    tbodyTech.innerHTML = lista.length
+      ? lista.map(t => '<tr>' +
+          '<td><code class="code-tag">' + t.code + '</code></td>' +
+          '<td>' + t.name + ' <span class="badge badge-amber" style="font-size:10px">' + (t.rol || 'Técnico') + '</span></td>' +
+          '<td>' + t.ordenes + '</td>' +
+          '<td>Bs ' + fmtMonto(t.ingresos) + '</td>' +
+          '<td>' + (t.branch || '—') + '</td>' +
+        '</tr>').join('')
+      : '<tr><td colspan="5" style="text-align:center;color:var(--gray-400)">Sin datos de técnicos</td></tr>';
+  }
+
+  // ---- Reporte por sucursal ----
+  renderReporteSucursales(ordenesFiltradas, celFiltradas, ventasFiltradas);
+}
+
+function renderReporteSucursales(ordenesListas, celFiltradas, ventasFiltradas) {
+  let box = document.getElementById('reporte-sucursales-wrap');
+  if (!box) {
+    const panel = document.getElementById('panel-reportes');
+    if (!panel) return;
+    box = document.createElement('div');
+    box.className = 'card';
+    box.id = 'reporte-sucursales-wrap';
+    box.innerHTML = '<div class="card-header"><h3 class="card-title">Rendimiento por sucursal</h3></div>' +
+      '<table class="table"><thead><tr><th>Sucursal</th><th>Órdenes listas</th><th>Ingresos servicios</th><th>Ganancia celulares</th><th>Ganancia neta</th></tr></thead>' +
+      '<tbody id="report-sucursal-body"></tbody></table>';
+    panel.appendChild(box);
+  }
+  const por = {};
+  const ensure = (name) => {
+    const n = name || 'Sin sucursal';
+    if (!por[n]) por[n] = { ordenes: 0, serv: 0, cel: 0 };
+    return por[n];
+  };
+  (ordenesListas || []).forEach(o => {
+    const r = ensure(o.branch);
+    r.ordenes++;
+    r.serv += parseFloat(o.monto) || 0;
+  });
+  (celFiltradas || []).forEach(v => {
+    const r = ensure(v.branch);
+    r.cel += parseFloat(v.ganancia) || 0;
+  });
+  // ventas rápidas sin sucursal clara → "General"
+  (ventasFiltradas || []).forEach(v => {
+    const r = ensure('Ventas mostrador');
+    r.serv += parseFloat(v.monto) || 0;
+  });
+
+  const tbody = document.getElementById('report-sucursal-body');
+  if (!tbody) return;
+  const rows = Object.entries(por).sort((a, b) => (b[1].serv + b[1].cel) - (a[1].serv + a[1].cel));
+  tbody.innerHTML = rows.length
+    ? rows.map(([nombre, d]) => {
+        const neta = d.serv + d.cel;
+        return '<tr>' +
+          '<td>' + nombre + '</td>' +
+          '<td>' + d.ordenes + '</td>' +
+          '<td>Bs ' + fmtMonto(d.serv) + '</td>' +
+          '<td style="color:' + (d.cel >= 0 ? 'var(--success)' : 'var(--danger)') + '">Bs ' + fmtMonto(d.cel) + '</td>' +
+          '<td style="font-weight:600">Bs ' + fmtMonto(neta) + '</td>' +
+        '</tr>';
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--gray-400)">Sin datos por sucursal</td></tr>';
+}
+
+
+
+// Re-bind Amnesis AFTER extensions.js (se carga después y pisa las funciones)
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    window.guardarHistorialEntry = guardarHistorialEntry;
+    window.renderHistorial = renderHistorial;
+    window.filterHistorial = filterHistorial;
+    window.mostrarQRDesdeHistorial = mostrarQRDesdeHistorial;
+    window.previewHistorialImgs = previewHistorialImgs;
+    window.previewHistorialImg = previewHistorialImg;
+    window.quitarHaFoto = quitarHaFoto;
+    window.verGaleriaHistorial = verGaleriaHistorial;
+    if (typeof loadHistorial === 'function' && getToken()) {
+      loadHistorial().catch(() => {});
+    }
+  }, 100);
+});
+
+
+// Bloquear stock modal técnico (extensions puede abrir modal grande de stock)
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    if (typeof window.abrirStockModal === 'function') {
+      const _abrir = window.abrirStockModal;
+      window.abrirStockModal = function() {
+        if (!esAdminOSuper()) {
+          showToast('Solo Admin / Super Admin pueden gestionar el stock', 'error');
+          // Igual puede ver el panel de stock en solo lectura
+          if (typeof nav === 'function') {
+            const el = document.querySelector('.nav-item[onclick*="stock"]');
+            nav('stock', el);
+          }
+          return;
+        }
+        return _abrir.apply(this, arguments);
+      };
+    }
+  }, 150);
+});
+
+
+// =====================================================================
+// PERFIL REAL: foto se guarda en servidor + SuperAdmin ve fotos de usuarios
+// (pisa las funciones de extensions.js que solo guardaban base64 local)
+// =====================================================================
+function fotoUrlUsuario(u) {
+  if (!u) return null;
+  if (u.foto_url) return u.foto_url;
+  if (u.foto_path) {
+    if (String(u.foto_path).startsWith('http')) return u.foto_path;
+    if (String(u.foto_path).startsWith('data:')) return u.foto_path;
+    const base = (typeof API_BASE !== 'undefined' ? API_BASE : '').replace(/\/api$/, '');
+    return base + '/storage/' + u.foto_path;
+  }
+  return null;
+}
+
+// Extender ProfileAPI con subida de foto (multipart)
+if (typeof ProfileAPI !== 'undefined') {
+  ProfileAPI.subirFoto = async function(file) {
+    const fd = new FormData();
+    fd.append('foto', file);
+    const headers = { Accept: 'application/json' };
+    const token = getToken();
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch(API_BASE + '/perfil/foto', { method: 'POST', headers, body: fd });
+    if (res.status === 401) { clearSession(); window.location.reload(); throw new Error('Sesión expirada'); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || data.error || ('Error ' + res.status));
+    return data;
+  };
+}
+
+function setAvatarImg(container, url, initialsText) {
+  if (!container) return;
+  if (url) {
+    container.style.overflow = 'hidden';
+    container.style.padding = '0';
+    let img = container.querySelector('img');
+    if (!img) {
+      img = document.createElement('img');
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;display:block';
+      container.innerHTML = '';
+      container.appendChild(img);
+    }
+    img.src = url;
+    img.style.display = 'block';
+    const ini = container.querySelector('#sidebar-avatar-initials, #perfil-avatar-initials');
+    if (ini) ini.style.display = 'none';
+  } else {
+    const text = initialsText || (currentUser ? initials(currentUser.name) : '--');
+    if (container.id === 'sidebar-avatar') {
+      container.innerHTML = '<span id="sidebar-avatar-initials">' + text + '</span>';
+    }
+  }
+}
+
+function updateSidebarAvatar() {
+  const url = fotoUrlUsuario(currentUser) || (perfilesExtra[currentUser?.user] || {}).foto;
+  const sidebarAvatar = document.getElementById('sidebar-avatar');
+  if (!sidebarAvatar) return;
+  if (url) {
+    sidebarAvatar.style.overflow = 'hidden';
+    sidebarAvatar.style.padding = '0';
+    sidebarAvatar.innerHTML = '<img src="' + url + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+  } else if (currentUser) {
+    sidebarAvatar.innerHTML = '<span id="sidebar-avatar-initials">' + initials(currentUser.name) + '</span>';
+  }
+}
+
+function abrirPerfil() {
+  if (!currentUser) return;
+  const extra = perfilesExtra[currentUser.user] || {};
+  const isSA = currentUser.rolRaw === 'superadmin';
+  const isAdmin = currentUser.rolRaw === 'administrador' || isSA;
+
+  const foto = fotoUrlUsuario(currentUser) || extra.foto;
+  const avatarDisp = document.getElementById('perfil-avatar-display');
+  const avatarIni = document.getElementById('perfil-avatar-initials');
+  if (foto && avatarDisp) {
+    let img = avatarDisp.querySelector('img');
+    if (!img) {
+      img = document.createElement('img');
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;display:block';
+      avatarDisp.insertBefore(img, avatarDisp.firstChild);
+    }
+    img.src = foto;
+    img.style.display = 'block';
+    if (avatarIni) avatarIni.style.display = 'none';
+  } else if (avatarIni) {
+    avatarIni.textContent = initials(currentUser.name);
+    avatarIni.style.display = '';
+    const img = avatarDisp && avatarDisp.querySelector('img');
+    if (img) img.style.display = 'none';
+  }
+
+  updateSidebarAvatar();
+
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+  const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? ''; };
+  setTxt('perfil-display-name', currentUser.name);
+  setTxt('perfil-display-role', currentUser.rol);
+  setVal('perfil-nombre', currentUser.name);
+  setVal('perfil-email', currentUser.email || extra.email || '');
+  setVal('perfil-telefono', currentUser.telefono || extra.telefono || '');
+  setVal('perfil-pass-actual', '');
+  setVal('perfil-pass-new', '');
+  setVal('perfil-pass-confirm', '');
+
+  const saBadge = document.getElementById('perfil-superadmin-badge');
+  if (saBadge) saBadge.classList.toggle('hidden', !isSA);
+  const emailInput = document.getElementById('perfil-email');
+  // Todos pueden editar su email/teléfono/nombre (personalización)
+  if (emailInput) emailInput.readOnly = false;
+
+  const saUserGroup = document.getElementById('perfil-sa-user-group');
+  const saRolGroup = document.getElementById('perfil-sa-rol-group');
+  if (saUserGroup) saUserGroup.style.display = isSA ? '' : 'none';
+  if (saRolGroup) saRolGroup.style.display = isSA ? '' : 'none';
+
+  document.getElementById('modal-perfil')?.classList.remove('hidden');
+}
+
+async function cambiarFotoPerfil(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    showToast('Selecciona una imagen válida', 'error');
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('La foto no debe superar 2 MB', 'error');
+    return;
+  }
+
+  // Preview inmediato
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const data = e.target.result;
+    if (!perfilesExtra[currentUser.user]) perfilesExtra[currentUser.user] = {};
+    perfilesExtra[currentUser.user].foto = data;
+    const avatarDisp = document.getElementById('perfil-avatar-display');
+    const avatarIni = document.getElementById('perfil-avatar-initials');
+    if (avatarDisp) {
+      let img = avatarDisp.querySelector('img');
+      if (!img) {
+        img = document.createElement('img');
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;display:block';
+        avatarDisp.insertBefore(img, avatarDisp.firstChild);
+      }
+      img.src = data;
+      img.style.display = 'block';
+    }
+    if (avatarIni) avatarIni.style.display = 'none';
+    updateSidebarAvatar();
+  };
+  reader.readAsDataURL(file);
+
+  // Guardar en servidor
+  try {
+    const actualizado = await ProfileAPI.subirFoto(file);
+    currentUser = normalizeUser({ ...getStoredUser(), ...actualizado });
+    setSession(getToken(), { ...getStoredUser(), ...actualizado });
+    if (actualizado.foto_url || actualizado.foto_path) {
+      if (!perfilesExtra[currentUser.user]) perfilesExtra[currentUser.user] = {};
+      perfilesExtra[currentUser.user].foto = fotoUrlUsuario(actualizado);
+    }
+    updateSidebarAvatar();
+    showToast('✓ Foto de perfil guardada');
+    if (typeof renderUsersEnhanced === 'function') renderUsersEnhanced();
+  } catch (e) {
+    showToast('No se pudo subir la foto: ' + (e.message || e), 'error');
+  }
+}
+
+async function guardarPerfil() {
+  if (!currentUser) return;
+  const nombre = document.getElementById('perfil-nombre')?.value.trim() || '';
+  const email = document.getElementById('perfil-email')?.value.trim() || '';
+  const telefono = document.getElementById('perfil-telefono')?.value.trim() || '';
+  const passActual = document.getElementById('perfil-pass-actual')?.value || '';
+  const passNew = document.getElementById('perfil-pass-new')?.value || '';
+  const passConfirm = document.getElementById('perfil-pass-confirm')?.value || '';
+
+  if (!validarNombre(nombre, 'Nombre')) return;
+  if (!email) { showToast('El correo es obligatorio', 'error'); return; }
+  if (telefono && !validarTelefono(telefono, false)) return;
+  if (passNew && passNew !== passConfirm) { showToast('Las contraseñas no coinciden', 'error'); return; }
+  if (passNew && !passActual) { showToast('Escribe tu contraseña actual', 'error'); return; }
+  if (passNew && passNew.length < 6) { showToast('La nueva contraseña debe tener al menos 6 caracteres', 'error'); return; }
+
+  try {
+    const actualizado = await ProfileAPI.update({ name: nombre, email, telefono });
+
+    if (passNew) {
+      const resp = await ProfileAPI.updatePassword({
+        password_actual: passActual,
+        password_nueva: passNew,
+        password_nueva_confirmation: passConfirm,
+      });
+      setSession(resp.token, { ...getStoredUser(), ...actualizado });
+    } else {
+      setSession(getToken(), { ...getStoredUser(), ...actualizado });
+    }
+
+    currentUser = normalizeUser({ ...getStoredUser(), ...actualizado, name: nombre, email, telefono });
+    if (!perfilesExtra[currentUser.user]) perfilesExtra[currentUser.user] = {};
+    perfilesExtra[currentUser.user].telefono = telefono;
+    perfilesExtra[currentUser.user].email = email;
+
+    const nameEl = document.getElementById('sidebar-name');
+    if (nameEl) nameEl.textContent = nombre;
+    updateSidebarAvatar();
+    closeModal();
+    if (typeof renderUsersEnhanced === 'function') renderUsersEnhanced();
+    if (typeof loadUsuarios === 'function') await loadUsuarios();
+    showToast('✓ Perfil actualizado correctamente');
+  } catch (e) {
+    showToast('No se pudo guardar el perfil: ' + (e.message || e), 'error');
+  }
+}
+
+// normalizeUser: conservar email, telefono, foto
+(function() {
+  const _nu = normalizeUser;
+  window.normalizeUser = function(u) {
+    const n = _nu(u);
+    n.email = u.email || n.email || '';
+    n.telefono = u.telefono || n.telefono || '';
+    n.foto_path = u.foto_path || null;
+    n.foto_url = u.foto_url || fotoUrlUsuario(u);
+    return n;
+  };
+})();
+
+// SuperAdmin: ver foto + datos personalizados en lista de usuarios
+function renderUsersEnhanced() {
+  const tbody = document.getElementById('users-body');
+  if (!tbody) return;
+  const esSuperAdmin = currentUser && currentUser.rolRaw === 'superadmin';
+  const esAdmin = currentUser && (currentUser.rolRaw === 'administrador' || esSuperAdmin);
+
+  tbody.innerHTML = (tecnicos || []).map(t => {
+    const foto = fotoUrlUsuario(t) || (perfilesExtra[t.user] || {}).foto;
+    const rolBadge = t.rolRaw === 'superadmin'
+      ? '<span class="superadmin-badge">⭐ Super Admin</span>'
+      : t.rolRaw === 'administrador'
+        ? '<span class="badge badge-purple">Administrador</span>'
+        : '<span class="badge badge-amber">Técnico</span>';
+    const avatarHtml = foto
+      ? '<img src="' + foto + '" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover">'
+      : '<div class="avatar">' + initials(t.name) + '</div>';
+
+    let acciones = '';
+    if (esSuperAdmin) {
+      acciones = '<button class="btn-icon" title="Editar usuario" onclick="abrirEditarUsuario(' + t.id + ')">✎</button>' +
+        '<button class="btn-icon danger" title="' + (t.active ? 'Desactivar' : 'Activar') + '" onclick="toggleUsuarioActivo(' + t.id + ')">' +
+        (t.active ? '⊘' : '✓') + '</button>';
+    }
+
+    const tel = t.telefono ? '<div style="font-size:11px;color:var(--gray-400)">' + t.telefono + '</div>' : '';
+    const mail = t.email ? '<div style="font-size:11px;color:var(--gray-400)">' + t.email + '</div>' : '';
+
+    return '<tr>' +
+      '<td><code class="code-tag">' + t.code + '</code></td>' +
+      '<td><div class="avatar-cell">' + avatarHtml + '<div><div>' + t.name + '</div>' + tel + mail + '</div></div></td>' +
+      '<td style="font-family:var(--font-mono);font-size:12px;color:var(--gray-400)">' + t.user + '</td>' +
+      '<td>' + rolBadge + '</td>' +
+      '<td>' + (t.branch || '—') + '</td>' +
+      '<td><span class="badge ' + (t.active ? 'badge-green' : 'badge-red') + '">' + (t.active ? 'Activo' : 'Inactivo') + '</span></td>' +
+      '<td style="text-align:right">' + acciones + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+// loadUsuarios: guardar email, telefono, foto para SuperAdmin
+(function() {
+  const _load = loadUsuarios;
+  window.loadUsuarios = async function() {
+    await _load();
+    // map extra fields if API starts sending them
+    try {
+      const list = await UsuariosAPI.list();
+      tecnicos = list.map((u) => ({
+        id: u.id,
+        code: u.code,
+        name: u.name,
+        user: u.username,
+        username: u.username,
+        rol: mapRol(u.rol),
+        rolRaw: u.rol,
+        branch: u.sucursal || '',
+        sucursal_id: u.sucursal_id ?? null,
+        active: u.active,
+        email: u.email || '',
+        telefono: u.telefono || '',
+        foto_path: u.foto_path || null,
+        foto_url: u.foto_url || null,
+      }));
+      if (typeof renderUsersEnhanced === 'function') renderUsersEnhanced();
+      else if (typeof renderUsers === 'function') renderUsers();
+    } catch (_) {}
+  };
+})();
+
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    window.abrirPerfil = abrirPerfil;
+    window.cambiarFotoPerfil = cambiarFotoPerfil;
+    window.guardarPerfil = guardarPerfil;
+    window.updateSidebarAvatar = updateSidebarAvatar;
+    window.renderUsersEnhanced = renderUsersEnhanced;
+    if (currentUser) updateSidebarAvatar();
+  }, 120);
+});
+
+
+
+function verGaleriaHistorial(dbId) {
+  const data = (typeof historialData !== 'undefined' && historialData.length)
+    ? historialData
+    : (window.historialData || []);
+  const h = data.find(x => String(x.dbId) === String(dbId) || String(x.id) === String(dbId));
+  if (!h) return;
+  const fotos = (h.fotos && h.fotos.length) ? h.fotos : (h.foto ? [h.foto] : []);
+  if (!fotos.length) { showToast('Sin fotos en esta entrada', 'error'); return; }
+
+  let overlay = document.getElementById('historial-gallery-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'historial-gallery-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML =
+    '<div style="color:#fff;font-size:14px;margin-bottom:12px;text-align:center">' +
+      (h.titulo || h.equipo) + ' · ' + fotos.length + ' foto(s)' +
+      ' <button type="button" onclick="document.getElementById(\'historial-gallery-overlay\').remove()" style="margin-left:12px;background:#fff;color:#111;border:none;border-radius:6px;padding:4px 10px;cursor:pointer">Cerrar</button>' +
+    '</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:960px;max-height:80vh;overflow:auto">' +
+      fotos.map(function(src) {
+        return '<img src="' + src + '" alt="" style="max-width:280px;max-height:320px;object-fit:contain;border-radius:8px;background:#111">';
+      }).join('') +
+    '</div>';
+  overlay.style.display = 'flex';
+}
