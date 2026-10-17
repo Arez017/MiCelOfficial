@@ -4,48 +4,74 @@ namespace App\Services;
 
 use App\Models\Cliente;
 
-/**
- * Reglas de fidelidad de MiCel, centralizadas en un solo lugar para no
- * repetirlas en cada controlador que registra un cobro:
- *
- *  - Se gana 1 coin por cada Bs 10 gastados (en ventas, celulares y
- *    órdenes de servicio ya completadas/pagadas).
- *  - Un coin vale Bs 1 de descuento al canjearlo (esto es una suposición
- *    mía razonable — AJUSTA la constante si la tasa real es otra).
- *  - Un cliente se vuelve VIP automáticamente al acumular Bs 1000 gastados
- *    en total (histórico, no se le quita el VIP si después gasta menos).
- *
- * OJO con la vinculación: mientras no exista cliente_id real en
- * ventas/celulares_ventas/service_orders (eso es el Paso 3b pendiente),
- * esto vincula por número de teléfono. Si el teléfono no coincide
- * exactamente con el de la cuenta del cliente, no se le acreditan coins.
- */
 class ClienteFidelidadService
 {
-    private const BS_POR_COIN = 10;      // cuánto se gasta para ganar 1 coin
-    public const BS_POR_COIN_CANJE = 1;  // cuánto vale 1 coin al canjearlo
-    private const UMBRAL_VIP = 1000;     // gasto total acumulado para ser VIP
+    private const BS_POR_COIN = 10;
 
-    public static function registrarGasto(?string $phone, float $monto): void
+    public const BS_POR_COIN_CANJE = 1;
+
+    private const UMBRAL_VIP = 1000;
+
+    /**
+     * Acredita coins.
+     * Uso nuevo:  registrarGasto($clienteId, $phone, $monto)
+     * Uso viejo:  registrarGasto($phone, $monto)  ← sigue funcionando
+     */
+    public static function registrarGasto(mixed $clienteIdOrPhone = null, mixed $phoneOrMonto = null, ?float $monto = null): void
     {
-        if (empty($phone) || $monto <= 0) {
+        // Compat: registrarGasto($phone, $monto)
+        if (is_string($clienteIdOrPhone) || (is_null($clienteIdOrPhone) && is_numeric($phoneOrMonto) && $monto === null)) {
+            $phone = is_string($clienteIdOrPhone) ? $clienteIdOrPhone : null;
+            $amount = (float) $phoneOrMonto;
+            $clienteId = null;
+        } else {
+            $clienteId = is_numeric($clienteIdOrPhone) ? (int) $clienteIdOrPhone : null;
+            $phone = is_string($phoneOrMonto) ? $phoneOrMonto : null;
+            $amount = (float) ($monto ?? 0);
+        }
+
+        if ($amount <= 0) {
             return;
         }
 
-        $cliente = Cliente::where('phone', $phone)->first();
+        $cliente = self::resolverCliente($clienteId, $phone);
         if (! $cliente) {
-            return; // el gasto es real, pero no hay cuenta de cliente a la cual acreditarlo
+            return;
         }
 
-        $coinsGanados = intdiv((int) floor($monto), self::BS_POR_COIN);
+        $coinsGanados = intdiv((int) floor($amount), self::BS_POR_COIN);
+        if ($coinsGanados <= 0 && $amount > 0) {
+            // menos de Bs 10 → 0 coins (regla de negocio)
+        }
 
-        $cliente->coins += $coinsGanados;
-        $cliente->total_gastado += $monto;
+        $cliente->coins = (int) $cliente->coins + $coinsGanados;
+        $cliente->total_gastado = (float) $cliente->total_gastado + $amount;
 
         if (! $cliente->es_vip && $cliente->total_gastado >= self::UMBRAL_VIP) {
             $cliente->es_vip = true;
         }
 
         $cliente->save();
+    }
+
+    public static function resolverCliente(?int $clienteId, ?string $phone): ?Cliente
+    {
+        if ($clienteId) {
+            $c = Cliente::find($clienteId);
+            if ($c) {
+                return $c;
+            }
+        }
+
+        if (! empty($phone)) {
+            $norm = preg_replace('/\D+/', '', $phone);
+            if ($norm !== '') {
+                return Cliente::all()->first(function (Cliente $c) use ($norm) {
+                    return preg_replace('/\D+/', '', (string) $c->phone) === $norm;
+                });
+            }
+        }
+
+        return null;
     }
 }

@@ -67,13 +67,17 @@ async function doLogin() {
 
 function applyUserSession() {
   if (!currentUser) return;
-  const ini = initials(currentUser.name);
-  const span = document.getElementById('sidebar-avatar-initials');
-  if (span) span.textContent = ini;
   const nameEl = document.getElementById('sidebar-name');
   if (nameEl) nameEl.textContent = currentUser.name;
   const roleEl = document.getElementById('sidebar-role');
   if (roleEl) roleEl.textContent = currentUser.rol;
+  // Avatar del sidebar: foto real si existe, si no iniciales
+  if (typeof updateSidebarAvatar === 'function') {
+    updateSidebarAvatar();
+  } else {
+    const span = document.getElementById('sidebar-avatar-initials');
+    if (span) span.textContent = initials(currentUser.name);
+  }
 
   const rolBadgeEl = document.getElementById('topbar-rol');
   if (rolBadgeEl) {
@@ -282,6 +286,15 @@ async function loadStock(params = {}) {
   }
 }
 
+
+// Extender ClientesAPI (cuenta app + activar)
+if (typeof ClientesAPI !== 'undefined') {
+  ClientesAPI.gestionarCuenta = (id, body = {}) =>
+    api('/clientes/' + id + '/cuenta', { method: 'PATCH', body: JSON.stringify(body) });
+  ClientesAPI.toggleActivo = (id, active) =>
+    api('/clientes/' + id + '/activar', { method: 'PATCH', body: JSON.stringify({ active: !!active }) });
+}
+
 async function loadClientes(params = {}) {
   try {
     const list = await ClientesAPI.list(params);
@@ -290,12 +303,15 @@ async function loadClientes(params = {}) {
       dbId: c.id,
       name: c.name,
       phone: c.phone,
-      branch: c.sucursal?.nombre || '',
+      branch: c.sucursal?.nombre || c.sucursal || '',
       sucursal_id: c.sucursal_id ?? null,
       visits: c.visits || 0,
       lastVisit: c.last_visit
         ? new Date(c.last_visit).toLocaleDateString('es-BO')
         : '—',
+      username: c.username || '',
+      tieneCuenta: !!(c.tiene_cuenta || c.username),
+      active: c.active !== false,
     }));
     renderClientes(clientesData);
   } catch (e) {
@@ -1884,19 +1900,163 @@ async function registrarVenta() {
 }
 
 // ---------- clientes / recibos / users / report ----------
+function esSuperAdmin() {
+  return currentUser && (
+    currentUser.rolRaw === 'superadmin' ||
+    (currentUser.rol || '').toLowerCase().includes('super')
+  );
+}
+
 function renderClientes(data) {
   const el = document.getElementById('clientes-body');
   if (!el) return;
-  el.innerHTML = data
-    .map(
-      (c) => `<tr>
-      <td><code class="code-tag">${c.id}</code></td>
-      <td>${c.name}</td><td>${c.phone}</td><td>${c.visits}</td>
-      <td>${c.lastVisit}</td><td>${c.branch}</td><td>—</td>
-    </tr>`
-    )
+  const sa = esSuperAdmin();
+  const puedeEditar = (typeof esAdminOSuper === 'function' && esAdminOSuper()) || sa;
+  el.innerHTML = (data || [])
+    .map(function (c) {
+      const estado = c.active
+        ? '<span class="badge badge-green">Activo</span>'
+        : '<span class="badge badge-red">Inactivo</span>';
+      const cuenta = c.tieneCuenta
+        ? '<span style="font-size:11px;color:var(--gray-400)">' + (c.username || 'con cuenta') + '</span>'
+        : '<span style="font-size:11px;color:var(--gray-500)">Sin cuenta app</span>';
+      let acciones = '<span style="color:var(--gray-400);font-size:12px">—</span>';
+      if (puedeEditar) {
+        acciones = '<button class="btn-sm" onclick="abrirEditarCliente(' + c.dbId + ')">Editar</button> ';
+        acciones += '<button class="btn-sm btn-sm-primary" onclick="crearCuentaAppCliente(' + c.dbId + ')" title="Usuario + clave 1234">' +
+          (c.tieneCuenta ? 'Reset clave' : 'Cuenta app') + '</button> ';
+        acciones += '<button class="btn-sm" onclick="toggleClienteActivo(' + c.dbId + ',' + (c.active ? 'false' : 'true') + ')">' +
+          (c.active ? 'Inactivar' : 'Activar') + '</button>';
+        if (sa) {
+          acciones += ' <button class="btn-sm btn-sm-danger" onclick="eliminarCliente(' + c.dbId + ')" style="color:#fff;background:var(--danger,#dc2626)">Eliminar</button>';
+        }
+      }
+      return '<tr style="' + (c.active ? '' : 'opacity:0.65') + '">' +
+        '<td><code class="code-tag">' + c.id + '</code></td>' +
+        '<td>' + c.name + '<div>' + cuenta + '</div></td>' +
+        '<td>' + c.phone + '</td>' +
+        '<td>' + c.visits + '</td>' +
+        '<td>' + c.lastVisit + '</td>' +
+        '<td>' + (c.branch || '—') + '</td>' +
+        '<td>' + estado + '</td>' +
+        '<td style="white-space:nowrap">' + acciones + '</td>' +
+      '</tr>';
+    })
     .join('');
 }
+
+function abrirEditarCliente(dbId) {
+  if (!(esSuperAdmin() || (typeof esAdminOSuper === 'function' && esAdminOSuper()))) {
+    showToast('Solo Admin / Super Admin pueden editar clientes', 'error');
+    return;
+  }
+  const c = (clientesData || []).find(function (x) { return String(x.dbId) === String(dbId); });
+  if (!c) return;
+  document.getElementById('edit-cli-id').value = c.dbId;
+  document.getElementById('edit-cli-name').value = c.name || '';
+  document.getElementById('edit-cli-phone').value = c.phone || '';
+  const sel = document.getElementById('edit-cli-branch');
+  if (sel && typeof poblarSelectSucursal === 'function') {
+    poblarSelectSucursal(sel);
+    sel.value = c.sucursal_id != null ? String(c.sucursal_id) : '';
+  }
+  openModal('editar-cliente');
+}
+
+async function guardarEdicionCliente() {
+  if (!(esSuperAdmin() || (typeof esAdminOSuper === 'function' && esAdminOSuper()))) {
+    showToast('Solo Admin / Super Admin pueden editar clientes', 'error');
+    return;
+  }
+  const id = document.getElementById('edit-cli-id')?.value;
+  const name = document.getElementById('edit-cli-name')?.value.trim() || '';
+  const phone = document.getElementById('edit-cli-phone')?.value.trim() || '';
+  const sucursal_id = document.getElementById('edit-cli-branch')?.value || null;
+  if (!id) return;
+  if (!validarNombre(name, 'Nombre del cliente')) return;
+  if (!validarTelefono(phone, true)) return;
+
+  // anti-duplicado teléfono (otro cliente)
+  const phoneLimpio = limpiarTelefono(phone);
+  const otro = (clientesData || []).find(function (c) {
+    return String(c.dbId) !== String(id) && limpiarTelefono(String(c.phone || '')) === phoneLimpio;
+  });
+  if (otro) {
+    showToast('Ese teléfono ya pertenece a ' + otro.name + ' (' + otro.id + ')', 'error');
+    return;
+  }
+
+  try {
+    await ClientesAPI.update(id, { name, phone: phoneLimpio, sucursal_id: sucursal_id || null });
+    closeModal();
+    await loadClientes();
+    showToast('✓ Cliente actualizado');
+  } catch (e) {
+    showToast(e.message || 'No se pudo actualizar', 'error');
+  }
+}
+
+async function eliminarCliente(dbId) {
+  if (!esSuperAdmin()) {
+    showToast('Solo el Super Admin puede eliminar clientes', 'error');
+    return;
+  }
+  const c = (clientesData || []).find(function (x) { return String(x.dbId) === String(dbId); });
+  const label = c ? (c.name + ' (' + c.id + ')') : ('#' + dbId);
+  if (!confirm('¿Eliminar al cliente ' + label + '?\nEsta acción no se puede deshacer.')) return;
+  try {
+    await ClientesAPI.destroy(dbId);
+    await loadClientes();
+    showToast('✓ Cliente eliminado');
+  } catch (e) {
+    showToast(e.message || 'No se pudo eliminar', 'error');
+  }
+}
+
+async function crearCuentaAppCliente(dbId) {
+  if (!(esSuperAdmin() || (typeof esAdminOSuper === 'function' && esAdminOSuper()))) {
+    showToast('Solo Admin / Super Admin', 'error');
+    return;
+  }
+  const c = (clientesData || []).find(function (x) { return String(x.dbId) === String(dbId); });
+  if (!c) return;
+  const ok = confirm(
+    (c.tieneCuenta
+      ? '¿Resetear la clave de app de ' + c.name + ' a 1234?'
+      : '¿Crear cuenta de app para ' + c.name + '?\nUsuario automático + contraseña 1234')
+  );
+  if (!ok) return;
+  try {
+    const resp = await ClientesAPI.gestionarCuenta(dbId, { password: '1234' });
+    await loadClientes();
+    const u = resp.username || (resp.cliente && resp.cliente.username) || '';
+    const p = resp.password_temporal || '1234';
+    alert('Cuenta lista para la app Flutter:\n\nUsuario: ' + u + '\nContraseña: ' + p + '\n\nEntrégasela al cliente.');
+    showToast('✓ Cuenta app: ' + u + ' / ' + p);
+  } catch (e) {
+    showToast(e.message || 'No se pudo crear la cuenta', 'error');
+  }
+}
+
+async function toggleClienteActivo(dbId, active) {
+  if (!(esSuperAdmin() || (typeof esAdminOSuper === 'function' && esAdminOSuper()))) {
+    showToast('Solo Admin / Super Admin', 'error');
+    return;
+  }
+  const c = (clientesData || []).find(function (x) { return String(x.dbId) === String(dbId); });
+  const label = c ? c.name : ('#' + dbId);
+  const on = active === true || active === 'true';
+  if (!confirm((on ? '¿Activar ' : '¿Inactivar ') + label + '?\n' +
+    (on ? 'Podrá entrar a la app Flutter.' : 'No podrá iniciar sesión en la app.'))) return;
+  try {
+    await ClientesAPI.toggleActivo(dbId, on);
+    await loadClientes();
+    showToast(on ? '✓ Cliente activado' : '✓ Cliente inactivado');
+  } catch (e) {
+    showToast(e.message || 'No se pudo cambiar el estado', 'error');
+  }
+}
+
 
 function renderRecibosHistorial() {
   const el = document.getElementById('recibos-body');
@@ -2006,15 +2166,35 @@ async function guardarCliente() {
   if (!validarNombre(name, 'Nombre del cliente')) return;
   if (!validarTelefono(phone, true)) return;
 
+  const phoneLimpio = limpiarTelefono(phone);
+
+  // Anti-duplicado local (mismo teléfono)
+  const existente = (clientesData || []).find(function (c) {
+    return limpiarTelefono(String(c.phone || '')) === phoneLimpio;
+  });
+  if (existente) {
+    showToast(
+      'Este cliente ya está registrado: ' + existente.name + ' (' + existente.id + ') · Tel. ' + existente.phone,
+      'error'
+    );
+    // NO filtrar la lista (eso hacía que “desaparecieran” los demás)
+    // Solo recargar todos para no dejar la tabla a medias
+    try { await loadClientes(); } catch (_) {}
+    return;
+  }
+
   try {
-    const cliente = await ClientesAPI.create({ name, phone: limpiarTelefono(phone), sucursal_id });
+    const cliente = await ClientesAPI.create({ name, phone: phoneLimpio, sucursal_id });
     document.getElementById('new-cli-name').value = '';
     document.getElementById('new-cli-phone').value = '';
     closeModal();
     await loadClientes();
     showToast('✓ Cliente "' + cliente.name + '" registrado (' + (cliente.code || '') + ')');
   } catch (e) {
-    showToast(e.message || 'Error al registrar cliente', 'error');
+    const msg = e.message || 'Error al registrar cliente';
+    showToast(msg, 'error');
+    // Recargar lista completa (sin filtro) para no ocultar clientes
+    try { await loadClientes(); } catch (_) {}
   }
 }
 
@@ -2067,6 +2247,7 @@ function openModal(tipo) {
     'editar-orden': 'modal-editar-orden',
     venta: 'modal-venta',
     cliente: 'modal-cliente',
+    'editar-cliente': 'modal-editar-cliente',
     'recibo-manual': 'modal-recibo',
     'estado-orden': 'modal-estado',
     'editar-recibo': 'modal-editar-recibo',
@@ -2231,23 +2412,36 @@ const HistorialAPI = {
   create: async (body, fotoFiles) => {
     // body: { equipo, descripcion } — fotoFiles: File | File[] | null
     const files = !fotoFiles ? [] : (Array.isArray(fotoFiles) ? fotoFiles : [fotoFiles]);
-    if (files.length) {
-      const fd = new FormData();
-      fd.append('equipo', body.equipo);
-      if (body.descripcion) fd.append('descripcion', body.descripcion);
-      files.forEach(function(f) { fd.append('fotos[]', f); });
-      // compat: también manda la primera como "foto"
-      fd.append('foto', files[0]);
-      const headers = { Accept: 'application/json' };
-      const token = getToken();
-      if (token) headers['Authorization'] = 'Bearer ' + token;
-      const res = await fetch(API_BASE + '/historial', { method: 'POST', headers, body: fd });
-      if (res.status === 401) { clearSession(); window.location.reload(); throw new Error('Sesión expirada'); }
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || data.error || ('Error ' + res.status));
-      return data;
+    const fd = new FormData();
+    fd.append('equipo', body.equipo);
+    if (body.descripcion) fd.append('descripcion', body.descripcion);
+
+    files.forEach(function(f, i) {
+      // Laravel espera array "fotos" (fotos[0], fotos[1]...)
+      fd.append('fotos[' + i + ']', f, f.name || ('foto_' + i + '.jpg'));
+    });
+    if (files[0]) fd.append('foto', files[0], files[0].name || 'foto.jpg');
+
+    const headers = { Accept: 'application/json' };
+    const token = getToken();
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    // NO poner Content-Type: el browser pone multipart boundary
+
+    const res = await fetch(API_BASE + '/historial', { method: 'POST', headers, body: fd });
+    if (res.status === 401) { clearSession(); window.location.reload(); throw new Error('Sesión expirada'); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      let msg = data.message || data.error || ('Error ' + res.status);
+      if (data.errors && typeof data.errors === 'object') {
+        msg = Object.values(data.errors).flat().join(' · ');
+      }
+      // pistas frecuentes
+      if (String(msg).toLowerCase().includes('fotos') || res.status === 500) {
+        msg += ' — ¿Corriste php artisan migrate y storage:link?';
+      }
+      throw new Error(msg);
     }
-    return api('/historial', { method: 'POST', body: JSON.stringify(body) });
+    return data;
   },
 };
 
@@ -2333,7 +2527,13 @@ async function guardarHistorialEntry() {
     } catch (_) {}
   }
 
+  if (!fotoFiles.length) {
+    const ok = confirm('No seleccionaste fotos. ¿Guardar la entrada igual sin imágenes?');
+    if (!ok) return;
+  }
+
   try {
+    showToast('Guardando entrada...', 'info');
     await HistorialAPI.create({ equipo: equipoFinal, descripcion }, fotoFiles);
     closeModal();
     await loadHistorial();
@@ -2343,6 +2543,7 @@ async function guardarHistorialEntry() {
     });
     if (typeof limpiarHaFotos === 'function') limpiarHaFotos();
   } catch (e) {
+    console.error('Amnesis save error:', e);
     showToast(e.message || 'Error al guardar historial', 'error');
   }
 }
@@ -2689,6 +2890,8 @@ function renderReporteSucursales(ordenesListas, celFiltradas, ventasFiltradas) {
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     window.guardarHistorialEntry = guardarHistorialEntry;
+    window.guardarHistorialEntryApp = guardarHistorialEntry;
+    window.renderHistorialReal = renderHistorial;
     window.renderHistorial = renderHistorial;
     window.filterHistorial = filterHistorial;
     window.mostrarQRDesdeHistorial = mostrarQRDesdeHistorial;
@@ -2782,21 +2985,43 @@ function setAvatarImg(container, url, initialsText) {
 }
 
 function updateSidebarAvatar() {
-  const url = fotoUrlUsuario(currentUser) || (perfilesExtra[currentUser?.user] || {}).foto;
+  if (!currentUser) return;
+  const extra = (typeof perfilesExtra !== 'undefined' && perfilesExtra[currentUser.user]) || {};
+  let url = fotoUrlUsuario(currentUser) || extra.foto || null;
+  // cache-bust para que el navegador no muestre la imagen vieja
+  if (url && !String(url).startsWith('data:') && url.indexOf('?') === -1) {
+    url = url + '?t=' + Date.now();
+  }
   const sidebarAvatar = document.getElementById('sidebar-avatar');
   if (!sidebarAvatar) return;
+  sidebarAvatar.style.overflow = 'hidden';
+  sidebarAvatar.style.position = 'relative';
   if (url) {
-    sidebarAvatar.style.overflow = 'hidden';
-    sidebarAvatar.style.padding = '0';
-    sidebarAvatar.innerHTML = '<img src="' + url + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
-  } else if (currentUser) {
-    sidebarAvatar.innerHTML = '<span id="sidebar-avatar-initials">' + initials(currentUser.name) + '</span>';
+    sidebarAvatar.innerHTML =
+      '<img src="' + url + '" alt="" ' +
+      'style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;position:absolute;inset:0">';
+  } else {
+    sidebarAvatar.innerHTML =
+      '<span id="sidebar-avatar-initials" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%">' +
+      initials(currentUser.name) + '</span>';
   }
 }
 
-function abrirPerfil() {
+async function abrirPerfil() {
   if (!currentUser) return;
-  const extra = perfilesExtra[currentUser.user] || {};
+
+  // Cargar datos frescos del servidor (email, telefono, foto)
+  try {
+    if (typeof ProfileAPI !== 'undefined' && ProfileAPI.show) {
+      const p = await ProfileAPI.show();
+      currentUser = normalizeUser({ ...getStoredUser(), ...p });
+      setSession(getToken(), { ...getStoredUser(), ...p });
+    }
+  } catch (e) {
+    console.warn('No se pudo refrescar perfil:', e);
+  }
+
+  const extra = (typeof perfilesExtra !== 'undefined' && perfilesExtra[currentUser.user]) || {};
   const isSA = currentUser.rolRaw === 'superadmin';
   const isAdmin = currentUser.rolRaw === 'administrador' || isSA;
 
@@ -2827,7 +3052,10 @@ function abrirPerfil() {
   setTxt('perfil-display-name', currentUser.name);
   setTxt('perfil-display-role', currentUser.rol);
   setVal('perfil-nombre', currentUser.name);
-  setVal('perfil-email', currentUser.email || extra.email || '');
+
+  // Email real del usuario (nunca el placeholder vacío)
+  const emailReal = currentUser.email || extra.email || '';
+  setVal('perfil-email', emailReal);
   setVal('perfil-telefono', currentUser.telefono || extra.telefono || '');
   setVal('perfil-pass-actual', '');
   setVal('perfil-pass-new', '');
@@ -2835,9 +3063,20 @@ function abrirPerfil() {
 
   const saBadge = document.getElementById('perfil-superadmin-badge');
   if (saBadge) saBadge.classList.toggle('hidden', !isSA);
+
+  // Técnico: ve su correo pero no lo edita; Admin sí puede
   const emailInput = document.getElementById('perfil-email');
-  // Todos pueden editar su email/teléfono/nombre (personalización)
-  if (emailInput) emailInput.readOnly = false;
+  if (emailInput) {
+    emailInput.readOnly = !isAdmin;
+    emailInput.style.opacity = isAdmin ? '1' : '0.75';
+    emailInput.title = isAdmin ? '' : 'Solo un administrador puede cambiar el correo';
+  }
+  const hint = document.querySelector('#perfil-email-group span');
+  if (hint) {
+    hint.textContent = isAdmin
+      ? 'Puedes actualizar tu correo'
+      : (emailReal ? 'Tu correo registrado (solo admin puede cambiarlo)' : 'Sin correo — pide a un admin que te asigne uno');
+  }
 
   const saUserGroup = document.getElementById('perfil-sa-user-group');
   const saRolGroup = document.getElementById('perfil-sa-rol-group');
@@ -2851,11 +3090,11 @@ async function cambiarFotoPerfil(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
   if (!file.type.startsWith('image/')) {
-    showToast('Selecciona una imagen válida', 'error');
+    showToast('Selecciona una imagen válida (JPG, PNG, WebP)', 'error');
     return;
   }
-  if (file.size > 2 * 1024 * 1024) {
-    showToast('La foto no debe superar 2 MB', 'error');
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('La foto no debe superar 5 MB', 'error');
     return;
   }
 
@@ -2863,8 +3102,10 @@ async function cambiarFotoPerfil(event) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const data = e.target.result;
-    if (!perfilesExtra[currentUser.user]) perfilesExtra[currentUser.user] = {};
-    perfilesExtra[currentUser.user].foto = data;
+    if (typeof perfilesExtra !== 'undefined') {
+      if (!perfilesExtra[currentUser.user]) perfilesExtra[currentUser.user] = {};
+      perfilesExtra[currentUser.user].foto = data;
+    }
     const avatarDisp = document.getElementById('perfil-avatar-display');
     const avatarIni = document.getElementById('perfil-avatar-initials');
     if (avatarDisp) {
@@ -2882,34 +3123,73 @@ async function cambiarFotoPerfil(event) {
   };
   reader.readAsDataURL(file);
 
-  // Guardar en servidor
+  // Subida real al servidor
   try {
+    if (typeof ProfileAPI === 'undefined' || typeof ProfileAPI.subirFoto !== 'function') {
+      // definir al vuelo si extensions/api no lo trajeron
+      window.ProfileAPI = window.ProfileAPI || {};
+      ProfileAPI.subirFoto = async function(f) {
+        const fd = new FormData();
+        fd.append('foto', f, f.name || 'perfil.jpg');
+        const headers = { Accept: 'application/json' };
+        const token = getToken();
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const res = await fetch(API_BASE + '/perfil/foto', { method: 'POST', headers, body: fd });
+        if (res.status === 401) { clearSession(); window.location.reload(); throw new Error('Sesión expirada'); }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          let msg = data.message || data.error || ('Error ' + res.status);
+          if (data.errors) msg = Object.values(data.errors).flat().join(' · ');
+          throw new Error(msg);
+        }
+        return data;
+      };
+    }
+    showToast('Subiendo foto...', 'info');
     const actualizado = await ProfileAPI.subirFoto(file);
     currentUser = normalizeUser({ ...getStoredUser(), ...actualizado });
     setSession(getToken(), { ...getStoredUser(), ...actualizado });
-    if (actualizado.foto_url || actualizado.foto_path) {
+    const url = fotoUrlUsuario(actualizado) || actualizado.foto_url;
+    if (url && typeof perfilesExtra !== 'undefined') {
       if (!perfilesExtra[currentUser.user]) perfilesExtra[currentUser.user] = {};
-      perfilesExtra[currentUser.user].foto = fotoUrlUsuario(actualizado);
+      perfilesExtra[currentUser.user].foto = url;
     }
     updateSidebarAvatar();
-    showToast('✓ Foto de perfil guardada');
+    // refrescar preview del modal con URL del servidor
+    const avatarDisp = document.getElementById('perfil-avatar-display');
+    if (avatarDisp && url) {
+      let img = avatarDisp.querySelector('img');
+      if (img) img.src = url;
+    }
+    showToast('✓ Foto de perfil guardada en el servidor');
     if (typeof renderUsersEnhanced === 'function') renderUsersEnhanced();
   } catch (e) {
-    showToast('No se pudo subir la foto: ' + (e.message || e), 'error');
+    console.error('Foto perfil:', e);
+    showToast('No se pudo subir la foto: ' + (e.message || e) + ' — ¿php artisan storage:link?', 'error');
   }
+  // permitir re-elegir la misma imagen
+  if (event.target) event.target.value = '';
 }
 
 async function guardarPerfil() {
   if (!currentUser) return;
   const nombre = document.getElementById('perfil-nombre')?.value.trim() || '';
-  const email = document.getElementById('perfil-email')?.value.trim() || '';
+  let email = document.getElementById('perfil-email')?.value.trim() || '';
   const telefono = document.getElementById('perfil-telefono')?.value.trim() || '';
   const passActual = document.getElementById('perfil-pass-actual')?.value || '';
   const passNew = document.getElementById('perfil-pass-new')?.value || '';
   const passConfirm = document.getElementById('perfil-pass-confirm')?.value || '';
 
+  // Si el campo viene vacío (placeholder / readonly raro), usar el email de sesión
+  if (!email) {
+    email = (currentUser.email || '').trim();
+  }
+
   if (!validarNombre(nombre, 'Nombre')) return;
-  if (!email) { showToast('El correo es obligatorio', 'error'); return; }
+  if (!email) {
+    showToast('No tienes correo asignado. Pide a un admin que te configure uno.', 'error');
+    return;
+  }
   if (telefono && !validarTelefono(telefono, false)) return;
   if (passNew && passNew !== passConfirm) { showToast('Las contraseñas no coinciden', 'error'); return; }
   if (passNew && !passActual) { showToast('Escribe tu contraseña actual', 'error'); return; }
@@ -2930,9 +3210,11 @@ async function guardarPerfil() {
     }
 
     currentUser = normalizeUser({ ...getStoredUser(), ...actualizado, name: nombre, email, telefono });
-    if (!perfilesExtra[currentUser.user]) perfilesExtra[currentUser.user] = {};
-    perfilesExtra[currentUser.user].telefono = telefono;
-    perfilesExtra[currentUser.user].email = email;
+    if (typeof perfilesExtra !== 'undefined') {
+      if (!perfilesExtra[currentUser.user]) perfilesExtra[currentUser.user] = {};
+      perfilesExtra[currentUser.user].telefono = telefono;
+      perfilesExtra[currentUser.user].email = email;
+    }
 
     const nameEl = document.getElementById('sidebar-name');
     if (nameEl) nameEl.textContent = nombre;
@@ -3033,6 +3315,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     window.abrirPerfil = abrirPerfil;
     window.cambiarFotoPerfil = cambiarFotoPerfil;
+    window.cambiarFotoPerfilApp = cambiarFotoPerfil;
     window.guardarPerfil = guardarPerfil;
     window.updateSidebarAvatar = updateSidebarAvatar;
     window.renderUsersEnhanced = renderUsersEnhanced;
@@ -3071,3 +3354,20 @@ function verGaleriaHistorial(dbId) {
     '</div>';
   overlay.style.display = 'flex';
 }
+
+
+// Alias públicos (index.html y rebind post-extensions)
+window.guardarHistorialEntryApp = typeof guardarHistorialEntry === 'function' ? guardarHistorialEntry : null;
+window.renderHistorialReal = typeof renderHistorial === 'function' ? renderHistorial : null;
+function guardarHistorialEntryApp() {
+  return guardarHistorialEntry.apply(this, arguments);
+}
+
+
+window.guardarPerfilApp = guardarPerfil;
+window.abrirPerfilApp = abrirPerfil;
+async function guardarPerfilApp() { return guardarPerfil.apply(this, arguments); }
+async function abrirPerfilApp() { return abrirPerfil.apply(this, arguments); }
+
+window.cambiarFotoPerfilApp = cambiarFotoPerfil;
+async function cambiarFotoPerfilApp(event) { return cambiarFotoPerfil(event); }

@@ -61,8 +61,20 @@ class ProfileController extends Controller
     public function subirFoto(Request $request)
     {
         $request->validate([
-            'foto' => ['required', 'image', 'max:2048'],
+            'foto' => ['required', 'file', 'max:5120'], // 5 MB
         ]);
+
+        $file = $request->file('foto');
+        if (! $file || ! $file->isValid()) {
+            return response()->json(['message' => 'Archivo de foto inválido.'], 422);
+        }
+
+        $mime = (string) $file->getMimeType();
+        $ext = strtolower($file->getClientOriginalExtension() ?: '');
+        $ok = str_starts_with($mime, 'image/') || in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true);
+        if (! $ok) {
+            return response()->json(['message' => 'El archivo debe ser una imagen (JPG, PNG, WebP).'], 422);
+        }
 
         $user = $request->user();
 
@@ -70,10 +82,10 @@ class ProfileController extends Controller
             Storage::disk('public')->delete($user->foto_path);
         }
 
-        $path = $request->file('foto')->store('perfiles', 'public');
+        $path = $file->store('perfiles', 'public');
         $user->update(['foto_path' => $path]);
 
-        return response()->json($this->formatUser($user));
+        return response()->json($this->formatUser($user->fresh()));
     }
 
     private function formatUser($user): array
@@ -90,7 +102,7 @@ class ProfileController extends Controller
             'active' => $user->active,
             'telefono' => $user->telefono,
             'foto_path' => $user->foto_path,
-            'foto_url' => $user->foto_path ? asset('storage/' . $user->foto_path) : null,
+            'foto_url' => $user->foto_path ? asset('storage/'.$user->foto_path) : null,
         ];
     }
 }

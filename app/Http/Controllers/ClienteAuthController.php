@@ -64,12 +64,15 @@ class ClienteAuthController extends Controller
         $this->assertEsCliente($request);
         $cliente = $request->user();
 
-        if (empty($cliente->phone)) {
-            return response()->json([]);
-        }
-
         $ordenes = ServiceOrder::with('tecnico')
-            ->where('phone', $cliente->phone)
+            ->where(function ($q) use ($cliente) {
+                $q->where('cliente_id', $cliente->id);
+                if (! empty($cliente->phone)) {
+                    $norm = preg_replace('/\D+/', '', $cliente->phone);
+                    // match exact phone or also leave exact match for compatibility
+                    $q->orWhere('phone', $cliente->phone);
+                }
+            })
             ->orderByDesc('created_at')
             ->get();
 

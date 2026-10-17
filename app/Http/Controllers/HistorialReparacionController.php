@@ -5,21 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\HistorialReparacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 
 class HistorialReparacionController extends Controller
 {
     /**
      * GET /api/historial
-     * Técnico solo ve el suyo; Admin/SuperAdmin ven todo (biblioteca).
+     * Biblioteca compartida: Admin, SuperAdmin y TODOS los técnicos ven todo.
      */
     public function index(Request $request)
     {
-        $user = $request->user();
         $query = HistorialReparacion::with('tecnico');
 
-        if ($user->esTecnico()) {
-            $query->where('tecnico_id', $user->id);
-        }
+        // Sin filtro por tecnico_id — Amnesis es biblioteca de todo el equipo
 
         return response()->json(
             $query->orderByDesc('id')->get()->map(fn ($h) => $this->format($h))
@@ -28,80 +26,105 @@ class HistorialReparacionController extends Controller
 
     public function show(Request $request, HistorialReparacion $historial)
     {
-        $this->assertPuedeVer($request, $historial);
-
+        // Cualquier usuario autenticado (staff) puede ver cualquier entrada
         return response()->json($this->format($historial->load('tecnico')));
     }
 
     /**
-     * POST /api/historial
-     * Acepta varias fotos: form-data
-     *   - equipo (required)
-     *   - descripcion (optional)
-     *   - foto  (optional, 1 imagen — compatibilidad)
-     *   - fotos[] (optional, varias imágenes)
+     * POST /api/historial — multipart:
+     * equipo*, descripcion?, foto?, fotos[]?
+     * Cualquier técnico/admin logueado puede agregar.
      */
     public function store(Request $request)
     {
         $data = $request->validate([
             'equipo' => ['required', 'string', 'max:255'],
             'descripcion' => ['nullable', 'string'],
-            'foto' => ['nullable', 'image', 'max:4096'],
+            'foto' => ['nullable', 'file', 'max:10240'],
             'fotos' => ['nullable', 'array', 'max:12'],
-            'fotos.*' => ['image', 'max:4096'],
+            'fotos.*' => ['nullable', 'file', 'max:10240'],
         ]);
 
         $user = $request->user();
         $paths = [];
 
-        // Varias fotos (preferido)
+        $allFiles = [];
         if ($request->hasFile('fotos')) {
-            foreach ($request->file('fotos') as $file) {
-                if ($file && $file->isValid()) {
-                    $paths[] = $file->store('historial', 'public');
+            $uploaded = $request->file('fotos');
+            if (is_array($uploaded)) {
+                foreach ($uploaded as $file) {
+                    if ($file) {
+                        $allFiles[] = $file;
+                    }
                 }
+            } elseif ($uploaded) {
+                $allFiles[] = $uploaded;
             }
         }
-
-        // Una sola foto (compatibilidad con el form viejo)
         if ($request->hasFile('foto')) {
-            $paths[] = $request->file('foto')->store('historial', 'public');
+            $allFiles[] = $request->file('foto');
+        }
+
+        foreach ($allFiles as $file) {
+            if (! $file || ! $file->isValid()) {
+                continue;
+            }
+            $mime = (string) $file->getMimeType();
+            $ext = strtolower($file->getClientOriginalExtension() ?: '');
+            $okMime = str_starts_with($mime, 'image/');
+            $okExt = in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'], true);
+            if (! $okMime && ! $okExt) {
+                continue;
+            }
+            $paths[] = $file->store('historial', 'public');
         }
 
         $paths = array_values(array_unique($paths));
         $portada = $paths[0] ?? null;
 
-        $historial = HistorialReparacion::create([
+        $payload = [
             'equipo' => $data['equipo'],
             'descripcion' => $data['descripcion'] ?? null,
             'foto_path' => $portada,
-            'fotos' => $paths ?: null,
             'tecnico_id' => $user->id,
             'qr_data' => Str::uuid()->toString(),
-        ]);
+        ];
+
+        if (Schema::hasColumn('historial_reparaciones', 'fotos')) {
+            $payload['fotos'] = $paths ?: null;
+        }
+
+        $historial = HistorialReparacion::create($payload);
 
         return response()->json($this->format($historial->load('tecnico')), 201);
     }
 
     private function format(HistorialReparacion $h): array
     {
-        $fotos = $h->fotos ?? [];
+        $fotos = [];
+        if (isset($h->fotos) && is_array($h->fotos)) {
+            $fotos = $h->fotos;
+        } elseif (! empty($h->attributes['fotos'] ?? null)) {
+            $decoded = json_decode($h->attributes['fotos'], true);
+            if (is_array($decoded)) {
+                $fotos = $decoded;
+            }
+        }
         if (empty($fotos) && $h->foto_path) {
             $fotos = [$h->foto_path];
         }
 
-        $urls = array_map(
-            fn ($p) => $p ? asset('storage/' . $p) : null,
+        $urls = array_values(array_filter(array_map(
+            fn ($p) => $p ? asset('storage/'.ltrim($p, '/')) : null,
             $fotos
-        );
-        $urls = array_values(array_filter($urls));
+        )));
 
         return [
             'id' => $h->id,
             'equipo' => $h->equipo,
             'descripcion' => $h->descripcion,
             'foto_path' => $h->foto_path,
-            'foto_url' => $h->foto_path ? asset('storage/' . $h->foto_path) : null,
+            'foto_url' => $h->foto_path ? asset('storage/'.ltrim($h->foto_path, '/')) : null,
             'fotos' => $fotos,
             'fotos_url' => $urls,
             'qr_data' => $h->qr_data,
@@ -110,17 +133,9 @@ class HistorialReparacionController extends Controller
                 'id' => $h->tecnico->id,
                 'code' => $h->tecnico->code,
                 'name' => $h->tecnico->name,
-                'rol' => $h->tecnico->rol,
+                'rol' => $h->tecnico->rol ?? null,
             ] : null,
             'created_at' => $h->created_at,
         ];
-    }
-
-    private function assertPuedeVer(Request $request, HistorialReparacion $historial): void
-    {
-        $user = $request->user();
-        if ($user->esTecnico() && $historial->tecnico_id !== $user->id) {
-            abort(403, 'No puedes ver historial de otro técnico.');
-        }
     }
 }

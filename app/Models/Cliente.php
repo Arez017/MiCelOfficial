@@ -8,13 +8,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
 
-/**
- * OJO: Cliente es un modelo "autenticable" separado de User (staff).
- * Comparten la misma tabla personal_access_tokens de Sanctum (es polimórfica),
- * así que $request->user() en una ruta auth:sanctum puede devolver un User
- * O un Cliente según de quién sea el token. Por eso cada controlador que
- * atiende a clientes valida `$request->user() instanceof Cliente`.
- */
 class Cliente extends Model implements AuthenticatableContract
 {
     use HasFactory, Authenticatable, HasApiTokens;
@@ -31,6 +24,7 @@ class Cliente extends Model implements AuthenticatableContract
         'coins',
         'total_gastado',
         'es_vip',
+        'active',
     ];
 
     protected $hidden = [
@@ -46,6 +40,7 @@ class Cliente extends Model implements AuthenticatableContract
             'coins' => 'integer',
             'total_gastado' => 'decimal:2',
             'es_vip' => 'boolean',
+            'active' => 'boolean',
         ];
     }
 

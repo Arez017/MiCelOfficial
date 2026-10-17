@@ -13,11 +13,12 @@ class ServiceOrder extends Model
         'code',
         'client',
         'phone',
+        'cliente_id',
         'device',
         'service',
         'tecnico_id',
         'sucursal_id',
-        'status',    // recepcion | diagnostico | en_proceso | listo
+        'status',
         'monto',
         'obs',
     ];
@@ -29,8 +30,6 @@ class ServiceOrder extends Model
         ];
     }
 
-    // ===== Relaciones =====
-
     public function tecnico()
     {
         return $this->belongsTo(User::class, 'tecnico_id');
@@ -41,31 +40,33 @@ class ServiceOrder extends Model
         return $this->belongsTo(Sucursal::class);
     }
 
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class, 'cliente_id');
+    }
+
     public function recibo()
     {
         return $this->hasOne(Recibo::class, 'orden_id');
     }
 
-    // ===== Comisión del técnico por esta orden =====
-    // Reemplaza el array fijo `reporteTecnicos` de app.js — ahora se calcula real.
-    // Ajusta el porcentaje (15%) si tu regla de negocio real es otra.
     public function getComisionAttribute(): float
     {
         if ($this->status !== 'listo') {
             return 0;
         }
+
         return round(((float) $this->monto) * 0.15, 2);
     }
 
-    // ===== Badge de estado (equivalente a statusBadge() de app.js) =====
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {
-            'recepcion'   => 'Recepción',
+            'recepcion' => 'Recepción',
             'diagnostico' => 'Diagnóstico',
-            'en_proceso'  => 'En proceso',
-            'listo'       => 'Listo',
-            default       => $this->status,
+            'en_proceso' => 'En proceso',
+            'listo' => 'Listo',
+            default => $this->status ?? '—',
         };
     }
 }

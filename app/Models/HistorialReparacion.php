@@ -15,9 +15,17 @@ class HistorialReparacion extends Model
         'equipo',
         'descripcion',
         'foto_path',
+        'fotos',
         'tecnico_id',
         'qr_data',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'fotos' => 'array',
+        ];
+    }
 
     public function tecnico()
     {

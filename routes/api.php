@@ -65,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/clientes/{cliente}/visita', [ClienteController::class, 'registrarVisita']);
     Route::patch('/clientes/{cliente}/cuenta', [ClienteController::class, 'gestionarCuenta']);
     Route::delete('/clientes/{cliente}', [ClienteController::class, 'destroy']);
+    Route::patch('/clientes/{cliente}/activar', [ClienteController::class, 'toggleActivo']);
 
     // Sesión de cliente (app móvil) — comparte el mismo middleware auth:sanctum,
     // pero el token pertenece a un Cliente, no a un User.
