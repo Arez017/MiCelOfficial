@@ -1,3 +1,66 @@
+
+// ===== Toasts abajo-derecha (estilo MVP) =====
+function showToast(message, type) {
+  type = type || 'ok';
+  if (type === true) type = 'error'; // compat
+  if (type !== 'error' && type !== 'warn' && type !== 'info' && type !== 'ok') {
+    type = 'ok';
+  }
+  let stack = document.getElementById('toast-stack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'toast-stack';
+    document.body.appendChild(stack);
+  }
+  const icons = { ok: '✓', error: '✕', warn: '⚠', info: 'ℹ' };
+  const el = document.createElement('div');
+  el.className = 'micel-toast ' + type;
+  el.innerHTML =
+    '<div class="t-icon">' + (icons[type] || '✓') + '</div>' +
+    '<div class="t-body"></div>' +
+    '<button type="button" class="t-close" aria-label="Cerrar">×</button>';
+  el.querySelector('.t-body').textContent = String(message || '');
+  el.querySelector('.t-close').onclick = () => dismissToast(el);
+  stack.appendChild(el);
+  const ttl = type === 'error' ? 5000 : 3200;
+  setTimeout(() => dismissToast(el), ttl);
+}
+function dismissToast(el) {
+  if (!el || el.classList.contains('out')) return;
+  el.classList.add('out');
+  setTimeout(() => el.remove(), 280);
+}
+window.showToast = showToast;
+
+/** Candado anti doble-clic / lag en formularios */
+const _locks = Object.create(null);
+function withSubmitLock(key, btnSelector, fn) {
+  return async function () {
+    if (_locks[key]) {
+      if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+      return;
+    }
+    _locks[key] = true;
+    const btn = btnSelector ? document.querySelector(btnSelector) : null;
+    let oldText = '';
+    if (btn) {
+      btn.disabled = true;
+      oldText = btn.textContent;
+      btn.textContent = 'Guardando…';
+    }
+    try {
+      return await fn.apply(this, arguments);
+    } finally {
+      _locks[key] = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = oldText || btn.textContent;
+      }
+    }
+  };
+}
+
+
 // ==========================================
 // APP.JS — MiCel v4.0 (API Laravel / Sanctum)
 // Orden de scripts: api.js → app.js → extensions.js
@@ -265,13 +328,15 @@ async function loadOrders(params = {}) {
 
 function normalizeStock(s) {
   return {
-    id: s.code || String(s.id),
     dbId: s.id,
-    name: s.name,
-    cat: s.categoria,
-    qty: s.qty,
-    min: s.min,
-    precio: parseFloat(s.precio) || 0,
+    id: s.code || ('REP-' + s.id),
+    name: s.name || '',
+    cat: s.categoria || s.cat || '',
+    qty: Number(s.qty) || 0,
+    min: Number(s.min) || 1,
+    precio: Number(s.precio) || 0,
+    foto_url: s.foto_url || null,
+    foto_path: s.foto_path || null,
   };
 }
 
@@ -337,6 +402,31 @@ async function loadVentas() {
   }
 }
 
+
+function fmtFechaRecibo(f) {
+  if (!f) return '';
+  const s = String(f);
+  // ISO: 2026-10-07T00:00:00.000000Z → 07/10/2026
+  if (s.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(s)) {
+    try {
+      const d = new Date(s.length === 10 ? s + 'T12:00:00' : s);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      }
+    } catch (_) {}
+    return s.slice(0, 10);
+  }
+  return s;
+}
+function fmtHoraRecibo(h) {
+  if (!h) return '';
+  const s = String(h).trim();
+  // "19:30:00" | "19:30"
+  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  if (m) return m[1].padStart(2, '0') + ':' + m[2];
+  return s;
+}
+
 async function loadRecibos() {
   try {
     const list = await RecibosAPI.list();
@@ -357,8 +447,8 @@ async function loadRecibos() {
       sucursal_id: r.sucursal_id ?? null,
       obs: r.obs || '',
       tipo: r.tipo || 'Recibo de servicio técnico',
-      hora: r.hora,
-      fecha: r.fecha,
+      hora: fmtHoraRecibo(r.hora),
+      fecha: fmtFechaRecibo(r.fecha),
     }));
     renderRecibosHistorial();
   } catch (e) {
@@ -550,6 +640,20 @@ function toggleCuotasFields() {
 }
 
 async function registrarVentaCelular(confirmarPerdida = false) {
+  if (_locks['venta_cel']) {
+    if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+    return;
+  }
+  _locks['venta_cel'] = true;
+  const __btn_venta_cel = document.querySelector('[onclick*="registrarVentaCelular"]');
+  let __old_venta_cel = '';
+  if (__btn_venta_cel) {
+    __btn_venta_cel.disabled = true;
+    __old_venta_cel = __btn_venta_cel.textContent;
+    __btn_venta_cel.textContent = 'Guardando…';
+  }
+  try {
+
   const invId = document.getElementById('cel-venta-select').value;
   const cliente = document.getElementById('cel-cliente').value.trim();
   const telefono = document.getElementById('cel-cliente-tel').value.trim();
@@ -631,6 +735,14 @@ async function registrarVentaCelular(confirmarPerdida = false) {
       return;
     }
     alert('No se pudo registrar la venta: ' + e.message);
+  }
+
+  } finally {
+    _locks['venta_cel'] = false;
+    if (__btn_venta_cel) {
+      __btn_venta_cel.disabled = false;
+      __btn_venta_cel.textContent = __old_venta_cel || __btn_venta_cel.textContent;
+    }
   }
 }
 
@@ -718,10 +830,28 @@ function toggleQrCuota(ventaId, numeroCuota, monto) {
   if (!fila) return;
   const estabaOculto = fila.classList.contains('hidden');
   fila.classList.toggle('hidden');
-  if (estabaOculto) {
-    const cont = document.getElementById(`qr-canvas-${ventaId}-${numeroCuota}`);
-    if (cont && cont.childElementCount === 0 && typeof QRCode !== 'undefined') {
-      new QRCode(cont, { text: `MICEL-PAGO|venta:${ventaId}|cuota:${numeroCuota}|monto:${monto}`, width: 130, height: 130 });
+  if (!estabaOculto) return;
+
+  const cont = document.getElementById(`qr-canvas-${ventaId}-${numeroCuota}`);
+  if (!cont) return;
+  cont.innerHTML = '';
+
+  const cfg = typeof loadQrCobroConfig === 'function' ? loadQrCobroConfig() : null;
+  const montoTxt = typeof fmtMonto === 'function' ? fmtMonto(monto) : monto;
+
+  if (cfg && cfg.imagen) {
+    cont.innerHTML =
+      '<img src="' + cfg.imagen + '" alt="QR cobro" style="width:150px;height:150px;object-fit:contain;background:#fff;border-radius:8px;padding:6px;border:1px solid #e5e7eb">' +
+      '<div style="font-size:11px;font-weight:600;color:#111827;margin-top:6px">' + (cfg.titulo || 'QR de pago MiCel') + '</div>' +
+      '<div style="font-size:11px;color:#6b7280">Cuota ' + numeroCuota + ' · Bs ' + montoTxt + '</div>';
+  } else {
+    cont.innerHTML =
+      '<div style="padding:12px;max-width:220px;font-size:12px;color:#6b7280;line-height:1.4">' +
+      '<strong style="color:#ff1440">QR del negocio no cargado</strong><br>' +
+      'Ve a <b>Usuarios → QR de cobro del negocio</b> y sube el QR de tu banco/billetera.' +
+      '</div>';
+    if (typeof showToast === 'function') {
+      showToast('Configura el QR en Usuarios → QR de cobro', 'warn');
     }
   }
 }
@@ -735,6 +865,33 @@ function _docsHtml(docs) {
       <div>${docs.boleta ? '✅' : '❌'} Última boleta de pago</div>
       <div>${docs.luz ? '✅' : '❌'} Aviso de luz de la vivienda actual</div>
       <div>${docs.afp ? '✅' : '❌'} Extracto de AFP</div>
+    </div>`;
+}
+
+
+/** Bloque QR de cobro del negocio (localStorage) para contratos/recibos */
+function _qrCobroNegocioHtml(opts) {
+  opts = opts || {};
+  let cfg = null;
+  try {
+    if (typeof loadQrCobroConfig === 'function') cfg = loadQrCobroConfig();
+    else cfg = JSON.parse(localStorage.getItem('micel_qr_cobro_negocio') || 'null');
+  } catch (_) {}
+  const titulo = (cfg && cfg.titulo) || 'QR de pago MiCel';
+  const extra = opts.extraLine || 'Escanea con tu banca o billetera para pagar cuotas / servicios';
+  if (cfg && cfg.imagen) {
+    return `
+      <div style="margin:18px 0 8px;padding:16px;border:2px dashed #ff1440;border-radius:12px;text-align:center;background:#fff5f7">
+        <div style="font-size:11px;font-weight:700;color:#ff1440;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Pago con QR</div>
+        <div style="font-size:12px;font-weight:600;color:#111827;margin-bottom:10px">${titulo}</div>
+        <img src="${cfg.imagen}" alt="QR cobro" style="width:160px;height:160px;object-fit:contain;background:#fff;border-radius:8px;padding:6px;border:1px solid #fecdd3">
+        <div style="font-size:11px;color:#6b7280;margin-top:10px;line-height:1.4">${extra}</div>
+      </div>`;
+  }
+  return `
+    <div style="margin:18px 0 8px;padding:14px;border:1px dashed #d1d5db;border-radius:10px;text-align:center;background:#f9fafb;font-size:12px;color:#6b7280">
+      <strong>QR de cobro no configurado.</strong><br>
+      Admin → Usuarios → “QR de cobro del negocio” para subirlo (se mostrará aquí en contratos y recibos).
     </div>`;
 }
 
@@ -768,12 +925,14 @@ function _contratoHtml(v, conAcciones) {
     .join('');
 
   return `
-    <div style="border:2px solid #e5e7eb;border-radius:8px;padding:24px;font-size:13px;line-height:1.8;color:#1f2937;background:#ffffff">
-      <div style="text-align:center;margin-bottom:16px;border-bottom:2px dashed #e5e7eb;padding-bottom:14px">
-        <div style="font-size:22px;font-weight:700;color:#ff1440;letter-spacing:2px">MICEL</div>
-        <div style="font-size:11px;color:#6b7280">Contrato de venta a crédito — Plan Cuotas MiCel</div>
-        <div style="font-size:11px;color:#6b7280">Sucursal: ${v.branch || '—'} · El Alto, Bolivia</div>
+    <div class="doc" style="border:2px solid #e5e7eb;border-radius:12px;overflow:hidden;font-size:13px;line-height:1.7;color:#1f2937;background:#ffffff;max-width:640px;margin:0 auto">
+      <div style="background:linear-gradient(135deg,#1a1a1a,#111);color:#fff;text-align:center;padding:20px 24px;margin-bottom:0;border-bottom:3px solid #F5C518">
+        <img src="img/logo-icon.svg" alt="MiCEL" style="width:56px;height:56px;margin:0 auto 8px;display:block">
+        <div style="font-size:26px;font-weight:800;letter-spacing:1px">mi<span style="color:#F5C518">CEL</span></div>
+        <div style="font-size:12px;opacity:.95;margin-top:4px">Contrato de venta a crédito — Plan Cuotas</div>
+        <div style="font-size:11px;opacity:.85;margin-top:2px">Sucursal: ${v.branch || '—'} · El Alto, Bolivia</div>
       </div>
+      <div style="padding:22px 24px 28px">
       <p style="margin-bottom:10px">
         Por medio del presente documento, <strong>${v.cliente}</strong> (Tel./CI: ${v.telefono}) declara adquirir de
         <strong>MiCel</strong> el equipo detallado a continuación, bajo la modalidad de <strong>venta a crédito en cuotas</strong>,
@@ -807,9 +966,11 @@ function _contratoHtml(v, conAcciones) {
         <strong>Cláusulas:</strong> El incumplimiento de 2 o más cuotas consecutivas faculta a MiCel a exigir el pago total del saldo
         pendiente y/o suspender la garantía del equipo. El cliente declara haber recibido el equipo en el estado descrito, conforme y en funcionamiento.
       </div>
-      <div style="display:flex;justify-content:space-between;margin-top:30px;font-size:12px">
-        <div style="text-align:center;width:45%;border-top:1px solid #9ca3af;padding-top:6px">Firma del Cliente</div>
-        <div style="text-align:center;width:45%;border-top:1px solid #9ca3af;padding-top:6px">Firma MiCel</div>
+      ${ _qrCobroNegocioHtml({ extraLine: 'Usa este QR para pagar las cuotas pendientes · Identifica el contrato ' + (v.codigo || '') + ' al transferir' }) }
+      <div style="display:flex;justify-content:space-between;margin-top:28px;font-size:12px;gap:24px">
+        <div style="text-align:center;flex:1;border-top:1px solid #9ca3af;padding-top:8px">Firma del Cliente</div>
+        <div style="text-align:center;flex:1;border-top:1px solid #9ca3af;padding-top:8px">Firma MiCel</div>
+      </div>
       </div>
     </div>`;
 }
@@ -825,12 +986,16 @@ function mostrarContrato(ventaId) {
 function imprimirContratoCelular() {
   const v = celularesData.find((x) => x.id === contratoActualId);
   if (!v || !v.planPagos) return;
-  // Versión de impresión: sin botones de acción ni QR en vivo
-  const w = window.open('', '_blank', 'width=800,height=900');
-  w.document.write(`<html><head><title>Contrato ${v.codigo || ''}</title></head><body style="font-family:sans-serif;padding:20px">${_contratoHtml(v, false)}</body></html>`);
+  const body = _contratoHtml(v, false);
+  const w = window.open('', '_blank', 'width=720,height=900');
+  if (!w) {
+    showToast('Permite ventanas emergentes para imprimir', 'error');
+    return;
+  }
+  w.document.write(_micelPrintShell('Contrato ' + (v.codigo || ''), body.replace(/src="img\/logo-icon.svg"/g, 'src="' + _logoUrl() + '"')));
   w.document.close();
   w.focus();
-  w.print();
+  setTimeout(() => w.print(), 300);
 }
 
 async function loadReporteTecnicos() {
@@ -972,7 +1137,8 @@ function soloDecimalPositivo(valor, permitirCero = true) {
 }
 
 function limpiarTelefono(valor) {
-  return (valor || '').replace(/[\s\-()]/g, '');
+  // Solo dígitos (ignora X del placeholder, espacios, guiones, etc.)
+  return (valor || '').replace(/\D+/g, '');
 }
 
 function validarNombre(valor, etiqueta) {
@@ -988,15 +1154,16 @@ function validarNombre(valor, etiqueta) {
 }
 
 function validarTelefono(valor, obligatorio) {
-  const v = (valor || '').trim();
-  if (!v) {
+  const digits = limpiarTelefono(valor || '');
+  // Vacío o solo basura tipo placeholder 7XXXXXXX sin dígitos suficientes
+  if (!digits) {
     if (obligatorio) {
       showToast('Teléfono es obligatorio', 'error');
       return false;
     }
-    return true;
+    return true; // opcional en órdenes / muchos formularios
   }
-  if (!soloTelefono(v)) {
+  if (digits.length < 7 || digits.length > 15) {
     showToast('Teléfono inválido: solo números (7 a 15 dígitos)', 'error');
     return false;
   }
@@ -1130,10 +1297,14 @@ function populateTechSelects() {
 function renderDashOrders() {
   const el = document.getElementById('dash-orders');
   if (!el) return;
-  el.innerHTML = ordersData
-    .slice(0, 6)
+  const rows = (ordersData || []).slice(0, 6);
+  if (!rows.length) {
+    el.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:20px">Sin órdenes aún — <a href="#" onclick="openModal(\'orden\');return false">crear una</a></td></tr>';
+    return;
+  }
+  el.innerHTML = rows
     .map(
-      (o) => `<tr>
+      (o) => `<tr class="dash-row-click" style="cursor:pointer" onclick="dashGo('ordenes')" title="Ir a órdenes">
       <td><code class="code-tag">${o.code}</code></td>
       <td>${o.client}</td>
       <td>${o.device} — ${o.service}</td>
@@ -1160,7 +1331,7 @@ function renderOrders(data) {
       <td>${estadoSelectHtml(o.id, o.statusRaw)}</td>
       <td style="font-weight:600">${o.monto > 0 ? 'Bs ' + fmtMonto(o.monto) : '—'}</td>
       <td>
-        <button class="btn-sm" onclick="editarOrden(${o.id})">Editar</button>
+        <button class="btn-sm" onclick="imprimirOrdenTrabajo(${o.id})" title="Orden de trabajo">OT</button> <button class="btn-sm" onclick="editarOrden(${o.id})">Editar</button>
         <button class="btn-sm btn-sm-primary" onclick="verReciboOrden(${o.id})">Recibo</button>
       </td>
     </tr>`
@@ -1431,6 +1602,20 @@ function editarOrden(id) {
 }
 
 async function guardarEdicionOrden() {
+  if (_locks['orden_edit']) {
+    if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+    return;
+  }
+  _locks['orden_edit'] = true;
+  const __btn_orden_edit = document.querySelector('[onclick="guardarEdicionOrden()"]');
+  let __old_orden_edit = '';
+  if (__btn_orden_edit) {
+    __btn_orden_edit.disabled = true;
+    __old_orden_edit = __btn_orden_edit.textContent;
+    __btn_orden_edit.textContent = 'Guardando…';
+  }
+  try {
+
   const id = document.getElementById('edit-order-id')?.value;
   if (!id) return;
   const clientEdit = document.getElementById('edit-order-client').value.trim();
@@ -1470,9 +1655,25 @@ async function guardarEdicionOrden() {
   } catch (e) {
     alert('No se pudo guardar: ' + e.message);
   }
+
+  } finally {
+    _locks['orden_edit'] = false;
+    if (__btn_orden_edit) {
+      __btn_orden_edit.disabled = false;
+      __btn_orden_edit.textContent = __old_orden_edit || __btn_orden_edit.textContent;
+    }
+  }
 }
 
+let _guardandoOrden = false;
+
 async function guardarOrden() {
+  // Evita órdenes duplicadas por doble clic o lag
+  if (_guardandoOrden) {
+    showToast('Ya se está guardando la orden…', 'warn');
+    return;
+  }
+
   const client = document.getElementById('modal-client').value.trim();
   const phone = document.getElementById('modal-phone').value.trim();
   const device = document.getElementById('modal-device').value.trim();
@@ -1489,10 +1690,18 @@ async function guardarOrden() {
   if (!service) { showToast('Servicio es obligatorio', 'error'); return; }
   if (montoRaw !== '' && !validarMonto(montoRaw, 'Monto estimado', true)) return;
 
+  const btn = document.querySelector('#modal-orden .btn-primary, [onclick="guardarOrden()"]');
+  _guardandoOrden = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.dataset._oldText = btn.textContent;
+    btn.textContent = 'Guardando…';
+  }
+
   try {
     await OrdersAPI.create({
       client,
-      phone: limpiarTelefono(phone) || null,
+      phone: (limpiarTelefono(phone).length >= 7 ? limpiarTelefono(phone) : null),
       device,
       service,
       sucursal_id,
@@ -1506,6 +1715,12 @@ async function guardarOrden() {
     showToast('✓ Orden creada correctamente');
   } catch (e) {
     showToast(e.message || 'Error al crear orden', 'error');
+  } finally {
+    _guardandoOrden = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = btn.dataset._oldText || 'Guardar orden';
+    }
   }
 }
 
@@ -1547,41 +1762,280 @@ async function verReciboOrden(id) {
 // ===== RECIBOS: vista previa / imprimir =====
 let _reciboEnPreview = null;
 
+function _logoUrl() {
+  try {
+    const base = (window.location.origin || '') + (window.location.pathname.replace(/\/[^/]*$/, '/') || '/');
+    return base + 'img/logo-icon.svg';
+  } catch {
+    return 'img/logo-icon.svg';
+  }
+}
+
+function _micelPrintShell(title, bodyHtml) {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #111827;
+      background: #fff;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .doc {
+      max-width: 520px;
+      margin: 0 auto;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+    }
+    .doc-head {
+      background: linear-gradient(135deg, #ff1440 0%, #c01030 100%);
+      color: #fff;
+      padding: 20px 24px;
+      text-align: center;
+    }
+    .doc-head .brand {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      margin: 0;
+    }
+    .doc-head .tag {
+      font-size: 12px;
+      opacity: .92;
+      margin-top: 4px;
+    }
+    .doc-body { padding: 22px 24px 28px; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f4f6;
+      font-size: 13px;
+    }
+    .row .lbl { color: #6b7280; font-weight: 500; }
+    .row .val { font-weight: 600; text-align: right; color: #111827; }
+    .total-box {
+      margin-top: 18px;
+      background: #fff5f7;
+      border: 2px solid #ff1440;
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .total-box .t-lbl { font-size: 13px; color: #6b7280; font-weight: 600; }
+    .total-box .t-val { font-size: 26px; font-weight: 800; color: #ff1440; }
+    .footer {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    .badge-tipo {
+      display: inline-block;
+      margin-top: 8px;
+      background: rgba(255,255,255,.2);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    table.crono {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin: 12px 0 16px;
+    }
+    table.crono th {
+      background: #f3f4f6;
+      padding: 8px;
+      text-align: left;
+      font-size: 11px;
+      color: #4b5563;
+    }
+    table.crono td {
+      padding: 8px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .clausula {
+      background: #fefce8;
+      border: 1px solid #fde047;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      color: #713f12;
+      margin: 14px 0;
+    }
+    .firmas {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 36px;
+      gap: 24px;
+    }
+    .firmas div {
+      flex: 1;
+      text-align: center;
+      border-top: 1px solid #9ca3af;
+      padding-top: 8px;
+      font-size: 12px;
+      color: #4b5563;
+    }
+    @media print {
+      body { padding: 0; }
+      .doc { box-shadow: none; border-color: #ccc; max-width: 100%; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>${bodyHtml}</body>
+</html>`;
+}
+
+function _reciboDocHtml(r) {
+  const logo = 'img/logo-icon.svg';
+  const check = (label) =>
+    `<label style="display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0;font-size:11px">
+      <span style="display:inline-block;width:12px;height:12px;border:1.5px solid #333;border-radius:2px"></span>${label}
+    </label>`;
+  const fnRow = (name) =>
+    `<tr>
+      <td style="padding:3px 6px;font-size:11px;border-bottom:1px solid #eee">${name}</td>
+      <td style="width:28px;text-align:center;border:1px solid #ccc;font-size:10px">Sí</td>
+      <td style="width:28px;text-align:center;border:1px solid #ccc;font-size:10px">No</td>
+      <td style="width:28px;text-align:center;border:1px solid #ccc;font-size:10px">N/A</td>
+    </tr>`;
+
+  return `
+  <div class="doc ot-doc" style="max-width:700px;margin:0 auto;border:2px solid #222;border-radius:4px;overflow:hidden;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif">
+    <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:2px solid #222;background:#fafafa">
+      <img src="${logo}" alt="MiCEL" style="width:56px;height:56px;flex-shrink:0">
+      <div style="flex:1">
+        <div style="font-size:22px;font-weight:900;letter-spacing:1px">mi<span style="color:#F5C518">CEL</span></div>
+        <div style="font-size:10px;color:#444;line-height:1.35">Servicio técnico de celulares<br>El Alto · Bolivia</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:14px;font-weight:800;border:2px solid #222;padding:6px 12px;display:inline-block">ORDEN DE TRABAJO</div>
+        <div style="font-size:13px;font-weight:700;margin-top:6px">N° ${r.numRecibo || '—'}</div>
+        <div style="font-size:11px;color:#555">${r.fecha || ''} ${r.hora || ''}</div>
+      </div>
+    </div>
+    <div style="padding:14px 16px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px">
+        <tr>
+          <td style="padding:4px 6px;width:50%;border:1px solid #ccc"><b>Cliente:</b> ${r.cliente || '________________'}</td>
+          <td style="padding:4px 6px;width:50%;border:1px solid #ccc"><b>Teléfono:</b> ${r.telefono || '________________'}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 6px;border:1px solid #ccc"><b>Equipo:</b> ${r.equipo || '________________'}</td>
+          <td style="padding:4px 6px;border:1px solid #ccc"><b>IMEI / Serie:</b> ${r.imei || '________________'}</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="padding:4px 6px;border:1px solid #ccc"><b>Servicio / Falla:</b> ${r.servicio || '________________'}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 6px;border:1px solid #ccc"><b>Técnico:</b> ${r.techName || '—'}</td>
+          <td style="padding:4px 6px;border:1px solid #ccc"><b>Sucursal:</b> ${r.sucursal || '—'}</td>
+        </tr>
+      </table>
+      <div style="font-size:10px;font-weight:700;margin:8px 0 4px;text-transform:uppercase">Estado al ingreso</div>
+      <div style="margin-bottom:10px;line-height:1.8">${check('Mojado')} ${check('Reparación previa')} ${check('Tornillería incompleta')} ${check('No enciende')}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-start">
+        <div style="flex:1.1;min-width:200px;border:1px solid #ccc;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:10px;font-weight:700;margin-bottom:6px">ESTADO FÍSICO</div>
+          <svg viewBox="0 0 220 150" width="200" height="130" xmlns="http://www.w3.org/2000/svg">
+            <!-- Frente -->
+            <rect x="18" y="12" width="70" height="120" rx="12" fill="none" stroke="#111" stroke-width="2.2"/>
+            <rect x="26" y="28" width="54" height="88" rx="3" fill="none" stroke="#444" stroke-width="1.2"/>
+            <circle cx="53" cy="20" r="3" fill="none" stroke="#333" stroke-width="1.2"/>
+            <rect x="44" y="122" width="18" height="4" rx="2" fill="#222"/>
+            <text x="53" y="145" text-anchor="middle" font-size="8" fill="#666">Frente</text>
+            <!-- Lateral -->
+            <rect x="105" y="20" width="22" height="110" rx="6" fill="none" stroke="#111" stroke-width="2"/>
+            <line x1="108" y1="40" x2="124" y2="40" stroke="#666" stroke-width="1"/>
+            <line x1="108" y1="55" x2="124" y2="55" stroke="#666" stroke-width="1"/>
+            <line x1="108" y1="95" x2="124" y2="95" stroke="#666" stroke-width="1.5"/>
+            <text x="116" y="145" text-anchor="middle" font-size="8" fill="#666">Lado</text>
+            <!-- Trasera -->
+            <rect x="145" y="12" width="70" height="120" rx="12" fill="none" stroke="#111" stroke-width="2.2"/>
+            <circle cx="168" cy="32" r="8" fill="none" stroke="#333" stroke-width="1.5"/>
+            <circle cx="168" cy="32" r="3.5" fill="none" stroke="#555" stroke-width="1"/>
+            <rect x="155" y="55" width="50" height="50" rx="4" fill="none" stroke="#ddd" stroke-width="1" stroke-dasharray="3 2"/>
+            <text x="180" y="145" text-anchor="middle" font-size="8" fill="#666">Dorso</text>
+          </svg>
+          <div style="font-size:9px;color:#666;margin-top:2px">Marcar golpes, rayones o zonas dañadas</div>
+        </div>
+        <div style="flex:1;min-width:160px">
+          <div style="font-size:10px;font-weight:700;margin-bottom:4px">FUNCIONES</div>
+          <table style="width:100%;border-collapse:collapse">
+            <tr style="background:#f3f4f6"><th style="text-align:left;padding:3px 6px;font-size:10px"></th><th style="font-size:9px">Sí</th><th style="font-size:9px">No</th><th style="font-size:9px">N/A</th></tr>
+            ${fnRow('Pantalla')} ${fnRow('Botones')} ${fnRow('Centro de carga')} ${fnRow('Micrófono')}
+            ${fnRow('Cámara trasera')} ${fnRow('Cámara frontal')} ${fnRow('WiFi')} ${fnRow('Bluetooth')}
+          </table>
+        </div>
+        <div style="width:100px;border:1px solid #222;border-radius:6px;padding:8px;text-align:center;flex-shrink:0">
+          <div style="font-size:9px;font-weight:700;margin-bottom:6px">CONTRASEÑA<br><span style="font-weight:500;color:#555">Patrón</span></div>
+          <svg viewBox="0 0 90 90" width="78" height="78">
+            <circle cx="20" cy="20" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
+            <circle cx="45" cy="20" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
+            <circle cx="70" cy="20" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
+            <circle cx="20" cy="45" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
+            <circle cx="45" cy="45" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
+            <circle cx="70" cy="45" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
+            <circle cx="20" cy="70" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
+            <circle cx="45" cy="70" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
+            <circle cx="70" cy="70" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
+          </svg>
+          <div style="font-size:8px;color:#666;margin-top:4px;line-height:1.2">Dibujar patrón<br>o anotar PIN</div>
+          <div style="border-bottom:1px solid #999;margin-top:8px;height:16px;font-size:10px"></div>
+        </div>
+      </div>
+      <div style="border:1px solid #ccc;min-height:48px;padding:8px;margin-bottom:12px;font-size:12px"><b style="font-size:10px;color:#555">OBSERVACIONES</b><br>${r.obs || '&nbsp;'}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="flex:1;border:2px solid #222;padding:10px;text-align:center;min-width:100px"><div style="font-size:10px;color:#555">TOTAL</div><div style="font-size:18px;font-weight:800">Bs ${fmtMonto(r.monto)}</div></div>
+        <div style="flex:1;border:1px solid #ccc;padding:10px;text-align:center;min-width:100px"><div style="font-size:10px;color:#555">Forma de pago</div><div style="font-size:13px;font-weight:700">${r.pago || '—'}</div></div>
+        <div style="flex:1;border:1px solid #ccc;padding:10px;text-align:center;min-width:100px"><div style="font-size:10px;color:#555">Garantía / Entrega</div><div style="font-size:12px">_______________</div></div>
+      </div>
+      ${typeof _qrCobroNegocioHtml === 'function' ? _qrCobroNegocioHtml({ extraLine: 'QR de pago MiCEL · Ref: ' + (r.numRecibo || '') }) : ''}
+      <div style="display:flex;gap:24px;margin-top:20px">
+        <div style="flex:1;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:11px">Firma del cliente</div>
+        <div style="flex:1;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:11px">Firma / sello MiCEL</div>
+      </div>
+      <div style="font-size:9px;color:#888;text-align:center;margin-top:12px">Documento generado por MiCEL · Servicio técnico</div>
+    </div>
+  </div>`;
+}
+
+
 function mostrarVistaPreviaRecibo(id) {
   const r = recibosData.find((x) => x.id === id);
   if (!r) return;
   _reciboEnPreview = r;
-
-  document.getElementById('recibo-preview').innerHTML = `
-    <div style="font-family:monospace;line-height:1.7">
-      <div style="text-align:center;font-weight:700;font-size:16px">MiCel</div>
-      <div style="text-align:center;font-size:11px;color:#777;margin-bottom:10px">${r.tipo}</div>
-      <hr>
-      <div><b>N° Recibo:</b> ${r.numRecibo}</div>
-      <div><b>Fecha:</b> ${r.fecha || ''} ${r.hora || ''}</div>
-      <div><b>Sucursal:</b> ${r.sucursal || '—'}</div>
-      <div><b>Cliente:</b> ${r.cliente}</div>
-      <div><b>Teléfono:</b> ${r.telefono}</div>
-      <div><b>Equipo:</b> ${r.equipo}</div>
-      <div><b>Servicio:</b> ${r.servicio}</div>
-      <div><b>Técnico:</b> ${r.techName}</div>
-      <div><b>Forma de pago:</b> ${r.pago}</div>
-      <hr>
-      <div style="font-size:18px;font-weight:700;text-align:right">Total: Bs ${fmtMonto(r.monto)}</div>
-      ${r.obs ? `<div style="margin-top:8px;font-size:11px;color:#777">${r.obs}</div>` : ''}
-    </div>`;
-
+  document.getElementById('recibo-preview').innerHTML = _reciboDocHtml(r);
   document.getElementById('modal-recibo').classList.remove('hidden');
 }
 
 function imprimirRecibo() {
   if (!_reciboEnPreview) return;
-  const html = document.getElementById('recibo-preview').innerHTML;
-  const w = window.open('', '_blank', 'width=400,height=600');
-  w.document.write(`<html><head><title>${_reciboEnPreview.numRecibo}</title></head><body>${html}</body></html>`);
+  const w = window.open('', '_blank', 'width=560,height=720');
+  if (!w) {
+    showToast('Permite ventanas emergentes para imprimir', 'error');
+    return;
+  }
+  w.document.write(_micelPrintShell(_reciboEnPreview.numRecibo || 'Recibo', _reciboDocHtml(_reciboEnPreview).replace(/src="img\/logo-icon.svg"/g, 'src="' + _logoUrl() + '"')));
   w.document.close();
   w.focus();
-  w.print();
+  setTimeout(() => w.print(), 250);
 }
 
 // ===== RECIBOS: editar =====
@@ -1607,6 +2061,20 @@ function abrirEditarRecibo(id) {
 }
 
 async function guardarEdicionRecibo() {
+  if (_locks['recibo_edit']) {
+    if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+    return;
+  }
+  _locks['recibo_edit'] = true;
+  const __btn_recibo_edit = document.querySelector('[onclick="guardarEdicionRecibo()"]');
+  let __old_recibo_edit = '';
+  if (__btn_recibo_edit) {
+    __btn_recibo_edit.disabled = true;
+    __old_recibo_edit = __btn_recibo_edit.textContent;
+    __btn_recibo_edit.textContent = 'Guardando…';
+  }
+  try {
+
   const id = parseInt(document.getElementById('edit-rec-num').value, 10);
   const payload = {
     cliente: document.getElementById('edit-rec-cliente').value.trim(),
@@ -1627,18 +2095,30 @@ async function guardarEdicionRecibo() {
   } catch (e) {
     alert('No se pudo actualizar el recibo: ' + e.message);
   }
+
+  } finally {
+    _locks['recibo_edit'] = false;
+    if (__btn_recibo_edit) {
+      __btn_recibo_edit.disabled = false;
+      __btn_recibo_edit.textContent = __old_recibo_edit || __btn_recibo_edit.textContent;
+    }
+  }
 }
 
 // ---------- stock ----------
 function renderStock(data) {
-  revisarAlertasStock();
+  if (typeof revisarAlertasStock === 'function') revisarAlertasStock();
   const el = document.getElementById('stock-body');
   if (!el) return;
-  el.innerHTML = data
+  el.innerHTML = (data || [])
     .map((s) => {
       const pct = Math.min(100, Math.round((s.qty / Math.max(s.min * 2, 1)) * 100));
       const color = stockColor(s.qty, s.min);
+      const img = s.foto_url
+        ? `<img class="stock-thumb" src="${s.foto_url}" alt="" onerror="this.outerHTML='<span class=\'stock-thumb-ph\'>📦</span>'">`
+        : `<span class="stock-thumb-ph">📦</span>`;
       return `<tr>
+        <td>${img}</td>
         <td><code class="code-tag">${s.id}</code></td>
         <td>${s.name}</td>
         <td>${s.cat}</td>
@@ -1678,34 +2158,50 @@ function editarRepuesto(idOrCode) {
   document.getElementById('edit-rep-precio').value = s.precio;
   document.getElementById('edit-rep-qty').value = s.qty;
   document.getElementById('edit-rep-min').value = s.min;
+  const prev = document.getElementById('edit-rep-foto-prev');
+  if (prev) {
+    if (s.foto_url) { prev.src = s.foto_url; prev.style.display = 'block'; }
+    else { prev.removeAttribute('src'); prev.style.display = 'none'; }
+  }
+  const fileEd = document.getElementById('edit-rep-foto');
+  if (fileEd) fileEd.value = '';
 
   openModal('editar-repuesto');
 }
 
 async function guardarEdicionRepuesto() {
   if (!esAdminOSuper()) { showToast('Solo Admin / Super Admin pueden modificar el stock', 'error'); return; }
-
-  const id = document.getElementById('edit-rep-id').value;
-  const name = document.getElementById('edit-rep-name').value.trim();
-  const categoria = document.getElementById('edit-rep-cat').value.trim();
-  const precio = parseFloat(document.getElementById('edit-rep-precio').value) || 0;
-  const qty = parseInt(document.getElementById('edit-rep-qty').value, 10) || 0;
-  const min = parseInt(document.getElementById('edit-rep-min').value, 10) || 1;
-
-  if (!name || !categoria) {
-    alert('Completa Nombre y Categoría.');
-    return;
-  }
-
+  const id = document.getElementById('edit-rep-id')?.value;
+  const name = document.getElementById('edit-rep-name')?.value.trim() || '';
+  const cat = document.getElementById('edit-rep-cat')?.value.trim() || '';
+  const precio = document.getElementById('edit-rep-precio')?.value || '0';
+  const qty = document.getElementById('edit-rep-qty')?.value || '0';
+  const min = document.getElementById('edit-rep-min')?.value || '1';
+  const foto = document.getElementById('edit-rep-foto')?.files?.[0];
+  const fotoUrl = document.getElementById('edit-rep-foto-url')?.value || '';
+  const autoFoto = document.getElementById('edit-rep-auto-foto')?.checked;
+  if (!id || !name) { showToast('Nombre es obligatorio', 'error'); return; }
+  const btn = document.querySelector('[onclick="guardarEdicionRepuesto()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
   try {
-    await StockAPI.update(id, { name, categoria, qty, min, precio });
-    await loadStock();
-    if (typeof renderStockModal === 'function') renderStockModal();
-    closeModal();
-    if (typeof updateDashboard === 'function') updateDashboard();
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('categoria', cat);
+    fd.append('precio', precio);
+    fd.append('qty', qty);
+    fd.append('min', min);
+    if (foto) fd.append('foto', foto);
+    else if (fotoUrl) fd.append('foto_url', fotoUrl);
+    else if (autoFoto) fd.append('auto_foto', '1');
+    if (typeof StockAPI.updateForm === 'function') await StockAPI.updateForm(id, fd);
+    else await StockAPI.update(id, { name, categoria: cat, precio: +precio, qty: +qty, min: +min });
     showToast('✓ Repuesto actualizado');
+    closeModal();
+    await loadStock();
   } catch (e) {
     showToast('No se pudo actualizar: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
   }
 }
 
@@ -1728,6 +2224,20 @@ function ajustarStock(idOrCode) {
 }
 
 async function guardarAjusteStock() {
+  if (_locks['ajuste']) {
+    if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+    return;
+  }
+  _locks['ajuste'] = true;
+  const __btn_ajuste = document.querySelector('[onclick="guardarAjusteStock()"]');
+  let __old_ajuste = '';
+  if (__btn_ajuste) {
+    __btn_ajuste.disabled = true;
+    __old_ajuste = __btn_ajuste.textContent;
+    __btn_ajuste.textContent = 'Guardando…';
+  }
+  try {
+
   if (!esAdminOSuper()) { showToast('Solo Admin / Super Admin pueden modificar el stock', 'error'); return; }
 
   const id = document.getElementById('adj-id').value;
@@ -1762,61 +2272,55 @@ async function guardarAjusteStock() {
   } catch (e) {
     showToast('No se pudo ajustar el stock: ' + e.message, 'error');
   }
+
+  } finally {
+    _locks['ajuste'] = false;
+    if (__btn_ajuste) {
+      __btn_ajuste.disabled = false;
+      __btn_ajuste.textContent = __old_ajuste || __btn_ajuste.textContent;
+    }
+  }
 }
 
 async function guardarRepuesto() {
   if (!esAdminOSuper()) { showToast('Solo Admin / Super Admin pueden modificar el stock', 'error'); return; }
-
-  const name = document.getElementById('new-rep-name').value.trim();
-  const cat = document.getElementById('new-rep-cat').value.trim();
-  const qtyRaw = document.getElementById('new-rep-qty').value;
-  const minRaw = document.getElementById('new-rep-min').value;
-  const precioRaw = document.getElementById('new-rep-precio').value;
-  const qty = parseInt(qtyRaw, 10);
-  const min = parseInt(minRaw, 10);
-  const precio = parseFloat(precioRaw);
-
+  const name = document.getElementById('new-rep-name')?.value.trim() || '';
+  const cat = document.getElementById('new-rep-cat')?.value || 'General';
+  const precio = document.getElementById('new-rep-precio')?.value || '0';
+  const qty = document.getElementById('new-rep-qty')?.value || '0';
+  const min = document.getElementById('new-rep-min')?.value || '5';
+  const foto = document.getElementById('new-rep-foto')?.files?.[0];
+  const fotoUrl = document.getElementById('new-rep-foto-url')?.value || '';
+  const autoFoto = document.getElementById('new-rep-auto-foto')?.checked;
   if (!name) { showToast('Nombre del repuesto es obligatorio', 'error'); return; }
-  if (!cat) { showToast('Categoría es obligatoria', 'error'); return; }
-  if (qtyRaw === '' || isNaN(qty) || qty < 0 || !Number.isInteger(qty)) {
-    showToast('Cantidad: número entero ≥ 0', 'error'); return;
-  }
-  if (minRaw === '' || isNaN(min) || min < 1 || !Number.isInteger(min)) {
-    showToast('Stock mínimo: entero ≥ 1', 'error'); return;
-  }
-  if (precioRaw !== '' && (isNaN(precio) || precio < 0)) {
-    showToast('Precio: número ≥ 0', 'error'); return;
-  }
-
-  const precioFinal = isNaN(precio) ? 0 : precio;
-  const avisoQty = qty === 0
-    ? '\n\n⚠️ La cantidad inicial es 0. El producto quedará sin stock hasta que hagas un ajuste.'
-    : '\n\nCantidad inicial: ' + qty;
-
-  const ok = confirm(
-    '¿Confirmar agregar al inventario?\n\n' +
-    '• Repuesto: ' + name + '\n' +
-    '• Categoría: ' + cat + '\n' +
-    '• Stock mínimo: ' + min + '\n' +
-    '• Precio: Bs ' + precioFinal +
-    avisoQty
-  );
-  if (!ok) return;
-
+  const btn = document.querySelector('[onclick="guardarRepuesto()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
   try {
-    await StockAPI.create({ name, categoria: cat, qty, min, precio: precioFinal });
-    ['new-rep-name', 'new-rep-cat', 'new-rep-qty', 'new-rep-min', 'new-rep-precio'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('categoria', cat);
+    fd.append('precio', precio);
+    fd.append('qty', qty);
+    fd.append('min', min);
+    if (foto) fd.append('foto', foto);
+    else if (fotoUrl) fd.append('foto_url', fotoUrl);
+    else if (autoFoto) fd.append('auto_foto', '1');
+    if (typeof StockAPI.createForm === 'function') await StockAPI.createForm(fd);
+    else await StockAPI.create({ name, categoria: cat, precio: +precio, qty: +qty, min: +min, foto_url: fotoUrl || undefined, auto_foto: autoFoto });
+    showToast('✓ Repuesto agregado');
     closeModal();
+    const f = document.getElementById('new-rep-foto');
+    if (f) f.value = '';
+    const prev = document.getElementById('new-rep-foto-prev');
+    if (prev) { prev.style.display = 'none'; prev.removeAttribute('src'); }
+    const hu = document.getElementById('new-rep-foto-url');
+    if (hu) hu.value = '';
+    if (document.getElementById('new-rep-name')) document.getElementById('new-rep-name').value = '';
     await loadStock();
-    if (typeof updateDashboard === 'function') updateDashboard();
-    showToast(qty === 0
-      ? '✓ Repuesto agregado (cantidad 0 — ajusta el stock cuando llegue)'
-      : '✓ Repuesto agregado al inventario');
   } catch (e) {
-    showToast(e.message || 'Error al agregar repuesto', 'error');
+    showToast('No se pudo guardar: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Agregar repuesto'; }
   }
 }
 
@@ -1862,6 +2366,20 @@ function renderVentas() {
 }
 
 async function registrarVenta() {
+  if (_locks['venta']) {
+    if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+    return;
+  }
+  _locks['venta'] = true;
+  const __btn_venta = document.querySelector('[onclick="registrarVenta()"]');
+  let __old_venta = '';
+  if (__btn_venta) {
+    __btn_venta.disabled = true;
+    __old_venta = __btn_venta.textContent;
+    __btn_venta.textContent = 'Guardando…';
+  }
+  try {
+
   const client = document.getElementById('venta-cliente')?.value.trim() || '';
   const detail = document.getElementById('venta-detalle')?.value.trim() || '';
   const montoRaw = document.getElementById('venta-monto')?.value;
@@ -1896,6 +2414,14 @@ async function registrarVenta() {
     showToast('✓ Venta registrada');
   } catch (e) {
     showToast(e.message || 'Error al registrar venta', 'error');
+  }
+
+  } finally {
+    _locks['venta'] = false;
+    if (__btn_venta) {
+      __btn_venta.disabled = false;
+      __btn_venta.textContent = __old_venta || __btn_venta.textContent;
+    }
   }
 }
 
@@ -1964,6 +2490,20 @@ function abrirEditarCliente(dbId) {
 }
 
 async function guardarEdicionCliente() {
+  if (_locks['cliente_edit']) {
+    if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+    return;
+  }
+  _locks['cliente_edit'] = true;
+  const __btn_cliente_edit = document.querySelector('[onclick="guardarEdicionCliente()"]');
+  let __old_cliente_edit = '';
+  if (__btn_cliente_edit) {
+    __btn_cliente_edit.disabled = true;
+    __old_cliente_edit = __btn_cliente_edit.textContent;
+    __btn_cliente_edit.textContent = 'Guardando…';
+  }
+  try {
+
   if (!(esSuperAdmin() || (typeof esAdminOSuper === 'function' && esAdminOSuper()))) {
     showToast('Solo Admin / Super Admin pueden editar clientes', 'error');
     return;
@@ -1993,6 +2533,14 @@ async function guardarEdicionCliente() {
     showToast('✓ Cliente actualizado');
   } catch (e) {
     showToast(e.message || 'No se pudo actualizar', 'error');
+  }
+
+  } finally {
+    _locks['cliente_edit'] = false;
+    if (__btn_cliente_edit) {
+      __btn_cliente_edit.disabled = false;
+      __btn_cliente_edit.textContent = __old_cliente_edit || __btn_cliente_edit.textContent;
+    }
   }
 }
 
@@ -2110,6 +2658,20 @@ function precargarRecibo(ordenId) {
 }
 
 async function generarRecibo() {
+  if (_locks['recibo']) {
+    if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+    return;
+  }
+  _locks['recibo'] = true;
+  const __btn_recibo = document.querySelector('[onclick="generarRecibo()"]');
+  let __old_recibo = '';
+  if (__btn_recibo) {
+    __btn_recibo.disabled = true;
+    __old_recibo = __btn_recibo.textContent;
+    __btn_recibo.textContent = 'Guardando…';
+  }
+  try {
+
   const orden_id = document.getElementById('recibo-orden').value || null;
   const cliente = document.getElementById('recibo-cliente').value.trim();
   const telefono = document.getElementById('recibo-telefono').value.trim();
@@ -2147,6 +2709,14 @@ async function generarRecibo() {
   } catch (e) {
     alert('No se pudo generar el recibo: ' + e.message);
   }
+
+  } finally {
+    _locks['recibo'] = false;
+    if (__btn_recibo) {
+      __btn_recibo.disabled = false;
+      __btn_recibo.textContent = __old_recibo || __btn_recibo.textContent;
+    }
+  }
 }
 
 function limpiarFormRecibo() {
@@ -2159,6 +2729,20 @@ function limpiarFormRecibo() {
 
 // ===== NUEVO CLIENTE =====
 async function guardarCliente() {
+  if (_locks['cliente']) {
+    if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+    return;
+  }
+  _locks['cliente'] = true;
+  const __btn_cliente = document.querySelector('[onclick="guardarCliente()"]');
+  let __old_cliente = '';
+  if (__btn_cliente) {
+    __btn_cliente.disabled = true;
+    __old_cliente = __btn_cliente.textContent;
+    __btn_cliente.textContent = 'Guardando…';
+  }
+  try {
+
   const name = document.getElementById('new-cli-name').value.trim();
   const phone = document.getElementById('new-cli-phone').value.trim();
   const sucursal_id = document.getElementById('new-cli-branch').value || null;
@@ -2195,6 +2779,14 @@ async function guardarCliente() {
     showToast(msg, 'error');
     // Recargar lista completa (sin filtro) para no ocultar clientes
     try { await loadClientes(); } catch (_) {}
+  }
+
+  } finally {
+    _locks['cliente'] = false;
+    if (__btn_cliente) {
+      __btn_cliente.disabled = false;
+      __btn_cliente.textContent = __old_cliente || __btn_cliente.textContent;
+    }
   }
 }
 
@@ -2497,6 +3089,20 @@ async function loadHistorial() {
 
 /** Guarda entrada real en la API (reemplaza el mock de extensions) */
 async function guardarHistorialEntry() {
+  if (_locks['historial']) {
+    if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+    return;
+  }
+  _locks['historial'] = true;
+  const __btn_historial = document.querySelector('[onclick*="guardarHistorial"]');
+  let __old_historial = '';
+  if (__btn_historial) {
+    __btn_historial.disabled = true;
+    __old_historial = __btn_historial.textContent;
+    __btn_historial.textContent = 'Guardando…';
+  }
+  try {
+
   const titulo   = document.getElementById('ha-titulo')?.value.trim() || '';
   const cliente  = document.getElementById('ha-cliente')?.value.trim() || '';
   const equipo   = document.getElementById('ha-equipo')?.value.trim() || '';
@@ -2545,6 +3151,14 @@ async function guardarHistorialEntry() {
   } catch (e) {
     console.error('Amnesis save error:', e);
     showToast(e.message || 'Error al guardar historial', 'error');
+  }
+
+  } finally {
+    _locks['historial'] = false;
+    if (__btn_historial) {
+      __btn_historial.disabled = false;
+      __btn_historial.textContent = __old_historial || __btn_historial.textContent;
+    }
   }
 }
 
@@ -2635,67 +3249,77 @@ function mostrarQRDesdeHistorial(id) {
 // DASHBOARD 100% REAL
 // ==========================================
 function updateDashboard() {
-  const activas = ordersData.filter(o => o.statusRaw !== 'listo').length;
+  const activas = (ordersData || []).filter(o => o.statusRaw !== 'listo').length;
   const hoy = new Date().toLocaleDateString('es-BO');
-  const ingresaronHoy = ordersData.filter(o => o.date === hoy).length;
+  const ingresaronHoy = (ordersData || []).filter(o => o.date === hoy).length;
 
-  const ingresosOrdenes = ordersData
+  const ingresosOrdenes = (ordersData || [])
     .filter(o => o.statusRaw === 'listo')
     .reduce((s, o) => s + (parseFloat(o.monto) || 0), 0);
   const ingresosVentas = (ventasHoy || []).reduce((s, v) => s + (parseFloat(v.monto) || 0), 0);
   const ingresosCel = (celularesData || []).reduce((s, v) => s + (parseFloat(v.venta) || 0), 0);
   const ingresosMes = ingresosOrdenes + ingresosVentas + ingresosCel;
 
-  const criticos = stockData.filter(s => s.qty <= s.min);
+  const criticos = (stockData || []).filter(s => s.qty <= s.min);
   const stockCritico = criticos.length;
-  const clientesAtendidos = new Set(ordersData.map(o => o.client)).size;
+  const clientesAtendidos = new Set((ordersData || []).map(o => o.client)).size;
 
-  const cards = document.querySelectorAll('#panel-dashboard .metric-card');
-  if (cards[0]) {
-    const val = cards[0].querySelector('.metric-value');
-    if (val) val.textContent = activas;
-    const trend = cards[0].querySelector('.metric-trend');
-    if (trend) trend.textContent = '↑ ' + ingresaronHoy + ' ingresaron hoy';
-  }
-  if (cards[1]) {
-    const val = cards[1].querySelector('.metric-value');
-    if (val) val.textContent = 'Bs ' + fmtMonto(ingresosMes);
-  }
-  if (cards[2]) {
-    const val = cards[2].querySelector('.metric-value');
-    if (val) {
-      val.textContent = stockCritico;
-      val.classList.toggle('danger', stockCritico > 0);
-    }
-  }
-  if (cards[3]) {
-    const val = cards[3].querySelector('.metric-value');
-    if (val) val.textContent = clientesAtendidos;
-  }
+  const setTxt = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  };
+  setTxt('dash-m-activas', String(activas));
+  setTxt('dash-m-activas-trend', '↑ ' + ingresaronHoy + ' ingresaron hoy · clic para ver');
+  setTxt('dash-m-ingresos', 'Bs ' + fmtMonto(ingresosMes));
+  setTxt('dash-m-ingresos-trend', 'Listos + ventas · clic reportes');
+  setTxt('dash-m-stock', String(stockCritico));
+  setTxt('dash-m-stock-trend', stockCritico ? 'bajo mínimo · clic para ver' : 'todo OK · ir a stock');
+  const stockVal = document.getElementById('dash-m-stock');
+  if (stockVal) stockVal.classList.toggle('danger', stockCritico > 0);
+  setTxt('dash-m-clientes', String(clientesAtendidos));
+  setTxt('dash-m-clientes-trend', 'con órdenes · clic para ver');
 
-  const alertsBox = document.querySelector('#panel-dashboard .alerts');
+  const alertsBox = document.getElementById('dash-alerts') || document.querySelector('#panel-dashboard .alerts');
   if (alertsBox) {
     let html = '';
     if (criticos.length) {
       const lista = criticos.slice(0, 5).map(s => s.name + ' (' + s.qty + ')').join(' · ');
-      html += '<div class="alert alert-warn">' +
+      html += '<div class="alert alert-warn alert-click" role="button" onclick="dashGo(\'stock\')">' +
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
-        '<strong>Stock crítico:</strong> ' + lista +
-        '</div>';
+        '<span><strong>Stock crítico:</strong> ' + lista + ' <em style="opacity:.8">(clic → Stock)</em></span></div>';
     }
-    const listos = ordersData.filter(o => o.statusRaw === 'listo').length;
+    const listos = (ordersData || []).filter(o => o.statusRaw === 'listo').length;
     if (listos) {
-      html += '<div class="alert alert-info">' +
+      html += '<div class="alert alert-info alert-click" role="button" onclick="dashGo(\'ordenes\')">' +
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
-        listos + ' órdenes listos para entrega' +
-        '</div>';
+        '<span>' + listos + ' órdenes listos para entrega <em style="opacity:.8">(clic → Órdenes)</em></span></div>';
     }
-    if (!html) html = '<div class="alert alert-info">Todo en orden ✓</div>';
+    if (!html) {
+      html = '<div class="alert alert-info">Todo en orden ✓ — usa los accesos rápidos o las tarjetas de arriba</div>';
+    }
     alertsBox.innerHTML = html;
   }
 
   if (typeof renderDashOrders === 'function') renderDashOrders();
 }
+
+/** Navega desde el dashboard a un módulo (activa el item del menú correcto) */
+function dashGo(panelId) {
+  const items = document.querySelectorAll('.nav-item');
+  let target = null;
+  items.forEach((n) => {
+    const oc = n.getAttribute('onclick') || '';
+    if (oc.includes("'" + panelId + "'") || oc.includes('"' + panelId + '"')) target = n;
+  });
+  if (typeof nav === 'function') nav(panelId, target);
+  else {
+    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+    const p = document.getElementById('panel-' + panelId);
+    if (p) p.classList.add('active');
+  }
+}
+
+
 
 // ==========================================
 // REPORTES 100% REALES (ingresos + servicios + técnicos)
@@ -3172,6 +3796,20 @@ async function cambiarFotoPerfil(event) {
 }
 
 async function guardarPerfil() {
+  if (_locks['perfil']) {
+    if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
+    return;
+  }
+  _locks['perfil'] = true;
+  const __btn_perfil = document.querySelector('[onclick*="guardarPerfil"]');
+  let __old_perfil = '';
+  if (__btn_perfil) {
+    __btn_perfil.disabled = true;
+    __old_perfil = __btn_perfil.textContent;
+    __btn_perfil.textContent = 'Guardando…';
+  }
+  try {
+
   if (!currentUser) return;
   const nombre = document.getElementById('perfil-nombre')?.value.trim() || '';
   let email = document.getElementById('perfil-email')?.value.trim() || '';
@@ -3225,6 +3863,14 @@ async function guardarPerfil() {
     showToast('✓ Perfil actualizado correctamente');
   } catch (e) {
     showToast('No se pudo guardar el perfil: ' + (e.message || e), 'error');
+  }
+
+  } finally {
+    _locks['perfil'] = false;
+    if (__btn_perfil) {
+      __btn_perfil.disabled = false;
+      __btn_perfil.textContent = __old_perfil || __btn_perfil.textContent;
+    }
   }
 }
 
@@ -3371,3 +4017,312 @@ async function abrirPerfilApp() { return abrirPerfil.apply(this, arguments); }
 
 window.cambiarFotoPerfilApp = cambiarFotoPerfil;
 async function cambiarFotoPerfilApp(event) { return cambiarFotoPerfil(event); }
+
+// Preview fotos stock
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'new-rep-foto') {
+    const prev = document.getElementById('new-rep-foto-prev');
+    if (prev && e.target.files?.[0]) {
+      prev.src = URL.createObjectURL(e.target.files[0]);
+      prev.style.display = 'block';
+    }
+  }
+  if (e.target && e.target.id === 'edit-rep-foto') {
+    const prev = document.getElementById('edit-rep-foto-prev');
+    if (prev && e.target.files?.[0]) {
+      prev.src = URL.createObjectURL(e.target.files[0]);
+      prev.style.display = 'block';
+    }
+  }
+});
+
+
+// ===== Foto libre (Openverse / CC) para stock =====
+
+// ===== Foto libre: API Laravel O directo Openverse (si la ruta 404) =====
+async function buscarFotoLibreRepuesto(modo) {
+  const isNew = modo === 'new';
+  const nameEl = document.getElementById(isNew ? 'new-rep-name' : 'edit-rep-name');
+  const catEl = document.getElementById(isNew ? 'new-rep-cat' : 'edit-rep-cat');
+  const name = (nameEl?.value || '').trim();
+  const cat = (catEl?.value || '').trim();
+  if (!name && !cat) {
+    showToast('Escribe el nombre del repuesto primero', 'error');
+    return;
+  }
+
+  showToast('Buscando imagen de uso libre…', 'info');
+
+  let url = null;
+  let fuente = '';
+
+  // 1) Openverse directo (no depende de routes/api.php → sin 404)
+  try {
+    url = await buscarFotoOpenverseDirecto(name, cat);
+    if (url) fuente = 'Openverse (CC / uso libre)';
+  } catch (e) {
+    console.warn('Openverse:', e);
+  }
+
+  // 2) API Laravel solo si Openverse falló y la ruta existe
+  if (!url && typeof StockAPI !== 'undefined' && StockAPI.buscarFoto) {
+    try {
+      const res = await StockAPI.buscarFoto(name || cat, cat);
+      url = res.foto_url || res.url || null;
+      if (url) fuente = res.fuente || 'API MiCel';
+    } catch (_) {
+      /* silencioso: ruta a menudo no registrada */
+    }
+  }
+
+  // 3) Fallback Wikimedia siempre disponible
+  if (!url) {
+    url = fallbackFotoPorCategoria(name, cat);
+    fuente = 'Wikimedia (referencia libre)';
+  }
+
+  const prev = document.getElementById(isNew ? 'new-rep-foto-prev' : 'edit-rep-foto-prev');
+  const hidden = document.getElementById(isNew ? 'new-rep-foto-url' : 'edit-rep-foto-url');
+  const src = document.getElementById(isNew ? 'new-rep-foto-src' : 'edit-rep-foto-src');
+  if (hidden) hidden.value = url;
+  if (prev) {
+    prev.src = url;
+    prev.style.display = 'block';
+    prev.onerror = function () {
+      const fb = fallbackFotoPorCategoria(name, cat);
+      this.onerror = null;
+      this.src = fb;
+      if (hidden) hidden.value = fb;
+      if (src) src.textContent = 'Fuente: Wikimedia (respaldo)';
+    };
+  }
+  if (src) src.textContent = 'Fuente: ' + fuente;
+  const file = document.getElementById(isNew ? 'new-rep-foto' : 'edit-rep-foto');
+  if (file) file.value = '';
+  showToast('✓ Foto libre lista — recuerda Guardar cambios');
+}
+
+async function buscarFotoOpenverseDirecto(name, cat) {
+  const q = mapQueryFotoLibre(name, cat);
+  try {
+    const u =
+      'https://api.openverse.org/v1/images/?page_size=5&q=' + encodeURIComponent(q);
+    const res = await fetch(u, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const results = data.results || [];
+    for (const img of results) {
+      const url = img.thumbnail || img.url;
+      if (url && String(url).startsWith('http')) return url;
+    }
+  } catch (e) {
+    console.warn('Openverse directo:', e);
+  }
+  return null;
+}
+
+function mapQueryFotoLibre(name, cat) {
+  const n = ((name || '') + ' ' + (cat || '')).toLowerCase();
+  if (n.includes('pantalla') || n.includes('screen')) return 'smartphone display';
+  if (n.includes('pin') || n.includes('tipo c') || n.includes('usb') || n.includes('conector'))
+    return 'usb type c cable';
+  if (n.includes('bater')) return 'phone battery';
+  if (n.includes('audio') || n.includes('altavoz')) return 'earphones';
+  if (n.includes('flex')) return 'flex cable';
+  // inglés corto
+  const clean = (name || cat || 'smartphone').replace(/[0-9]+/g, ' ').trim();
+  return clean + ' phone';
+}
+
+function fallbackFotoPorCategoria(name, cat) {
+  const c = ((name || '') + ' ' + (cat || '')).toLowerCase();
+  if (c.includes('pin') || c.includes('usb') || c.includes('conector') || c.includes('tipo c') || c.includes('v8'))
+    return 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/USB_Type-C_port.jpg/320px-USB_Type-C_port.jpg';
+  if (c.includes('pantalla'))
+    return 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Smartphone.jpg/320px-Smartphone.jpg';
+  if (c.includes('bater'))
+    return 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Nokia_battery.jpg/320px-Nokia_battery.jpg';
+  return 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Smartphone.jpg/320px-Smartphone.jpg';
+}
+
+
+
+// ===== QR de cobro del negocio (Usuarios → card) =====
+const QR_COBRO_KEY = 'micel_qr_cobro_negocio';
+
+function loadQrCobroConfig() {
+  try {
+    return JSON.parse(localStorage.getItem(QR_COBRO_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function saveQrCobroConfig(cfg) {
+  localStorage.setItem(QR_COBRO_KEY, JSON.stringify(cfg));
+}
+
+function refreshQrCobroUI() {
+  const cfg = loadQrCobroConfig();
+  const img = document.getElementById('qr-cobro-preview');
+  const ph = document.getElementById('qr-cobro-placeholder');
+  const titulo = document.getElementById('qr-cobro-titulo');
+  if (titulo && cfg && cfg.titulo) titulo.value = cfg.titulo;
+  if (img && ph) {
+    if (cfg && cfg.imagen) {
+      img.src = cfg.imagen;
+      img.style.display = 'block';
+      ph.style.display = 'none';
+    } else {
+      img.removeAttribute('src');
+      img.style.display = 'none';
+      ph.style.display = 'block';
+    }
+  }
+  // Solo admin ve la card (técnico no debería estar en usuarios, pero por si acaso)
+  const card = document.getElementById('card-qr-cobro');
+  if (card && typeof esAdminOSuper === 'function') {
+    card.style.display = esAdminOSuper() ? '' : 'none';
+  }
+}
+
+function guardarQrCobro() {
+  if (typeof esAdminOSuper === 'function' && !esAdminOSuper()) {
+    showToast('Solo Admin / Super Admin pueden configurar el QR', 'error');
+    return;
+  }
+  const file = document.getElementById('qr-cobro-file')?.files?.[0];
+  const titulo = document.getElementById('qr-cobro-titulo')?.value.trim() || 'QR de pago MiCel';
+  const prev = loadQrCobroConfig();
+
+  const finish = (imagen) => {
+    if (!imagen) {
+      showToast('Selecciona una imagen del QR', 'error');
+      return;
+    }
+    saveQrCobroConfig({ titulo, imagen, updatedAt: new Date().toISOString() });
+    refreshQrCobroUI();
+    const f = document.getElementById('qr-cobro-file');
+    if (f) f.value = '';
+    showToast('✓ QR de cobro guardado');
+  };
+
+  if (file) {
+    if (file.size > 2.5 * 1024 * 1024) {
+      showToast('Imagen muy pesada (máx ~2.5 MB)', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => finish(reader.result);
+    reader.onerror = () => showToast('No se pudo leer la imagen', 'error');
+    reader.readAsDataURL(file);
+  } else if (prev && prev.imagen) {
+    finish(prev.imagen); // solo actualiza título
+  } else {
+    showToast('Selecciona una imagen del QR', 'error');
+  }
+}
+
+function eliminarQrCobro() {
+  if (typeof esAdminOSuper === 'function' && !esAdminOSuper()) {
+    showToast('Solo Admin / Super Admin', 'error');
+    return;
+  }
+  if (!confirm('¿Quitar el QR de cobro del negocio?')) return;
+  localStorage.removeItem(QR_COBRO_KEY);
+  const titulo = document.getElementById('qr-cobro-titulo');
+  if (titulo) titulo.value = '';
+  const f = document.getElementById('qr-cobro-file');
+  if (f) f.value = '';
+  refreshQrCobroUI();
+  showToast('QR de cobro eliminado');
+}
+
+function mostrarQrCobro() {
+  const cfg = loadQrCobroConfig();
+  if (!cfg || !cfg.imagen) {
+    showToast('Aún no hay QR cargado. Súbelo en Usuarios → QR de cobro.', 'warn');
+    return;
+  }
+  const t = document.getElementById('modal-qr-cobro-titulo');
+  const img = document.getElementById('modal-qr-cobro-img');
+  if (t) t.textContent = cfg.titulo || 'Pagar con QR — MiCel';
+  if (img) img.src = cfg.imagen;
+  if (typeof openModal === 'function') openModal('qr-cobro');
+  else {
+    const m = document.getElementById('modal-qr-cobro');
+    if (m) m.classList.remove('hidden');
+  }
+}
+
+function mostrarQrCobroSiAplica(valorPago) {
+  const v = String(valorPago || '').toLowerCase();
+  if (v.includes('qr') || v.includes('transfer')) {
+    const cfg = loadQrCobroConfig();
+    if (cfg && cfg.imagen) {
+      // pequeña demora para no interrumpir el select
+      setTimeout(() => mostrarQrCobro(), 200);
+    }
+  }
+}
+
+// Preview al elegir archivo
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'qr-cobro-file' && e.target.files?.[0]) {
+    const img = document.getElementById('qr-cobro-preview');
+    const ph = document.getElementById('qr-cobro-placeholder');
+    const url = URL.createObjectURL(e.target.files[0]);
+    if (img) {
+      img.src = url;
+      img.style.display = 'block';
+    }
+    if (ph) ph.style.display = 'none';
+  }
+});
+
+// Cargar UI del QR al entrar a usuarios / al login
+(function hookQrCobroOnNav() {
+  const _nav = window.nav;
+  if (typeof _nav === 'function' && !_nav._qrHooked) {
+    window.nav = function (id, el) {
+      const r = _nav.apply(this, arguments);
+      if (id === 'usuarios') setTimeout(refreshQrCobroUI, 50);
+      return r;
+    };
+    window.nav._qrHooked = true;
+  }
+  document.addEventListener('DOMContentLoaded', () => setTimeout(refreshQrCobroUI, 400));
+  setTimeout(refreshQrCobroUI, 800);
+})();
+
+
+
+function imprimirOrdenTrabajo(orderId) {
+  const o = (ordersData || []).find((x) => x.id == orderId || x.dbId == orderId || x.code == orderId);
+  if (!o) { showToast('Orden no encontrada', 'error'); return; }
+  const fakeRecibo = {
+    numRecibo: o.code || ('OT-' + (o.id || '')),
+    fecha: o.date || '',
+    hora: '',
+    cliente: o.client || o.cliente || '',
+    telefono: o.phone || o.telefono || '',
+    equipo: o.device || o.equipo || '',
+    imei: o.imei || '',
+    servicio: o.service || o.servicio || '',
+    techName: o.techName || o.tecnico || '',
+    sucursal: o.branch || o.sucursal || '',
+    monto: o.monto || 0,
+    pago: o.pago || '—',
+    obs: o.obs || o.observaciones || '',
+    tipo: 'Orden de trabajo',
+  };
+  const w = window.open('', '_blank', 'width=720,height=900');
+  if (!w) { showToast('Permite ventanas emergentes', 'error'); return; }
+  const html = _reciboDocHtml(fakeRecibo).replace(/src="img\/logo-icon.svg"/g, 'src="' + _logoUrl() + '"');
+  w.document.write(_micelPrintShell(fakeRecibo.numRecibo, html));
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 300);
+}

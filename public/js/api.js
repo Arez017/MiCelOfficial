@@ -102,6 +102,53 @@ async function api(path, options = {}) {
   return data;
 }
 
+
+/** POST/PUT con FormData (fotos). NO poner Content-Type: lo pone el browser con boundary. */
+async function apiForm(path, formData, method = 'POST') {
+  const headers = {
+    'Accept': 'application/json',
+  };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  // Laravel method spoof for file uploads on PUT
+  if (method.toUpperCase() === 'PUT' || method.toUpperCase() === 'PATCH') {
+    formData.append('_method', method.toUpperCase());
+    method = 'POST';
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: formData,
+  });
+
+  if (res.status === 401) {
+    clearSession();
+    window.location.reload();
+    throw new Error('Sesión expirada. Vuelve a iniciar sesión.');
+  }
+
+  let data = null;
+  const text = await res.text();
+  if (text) {
+    try { data = JSON.parse(text); } catch { data = text; }
+  }
+
+  if (!res.ok) {
+    const msg =
+      (data && (data.message || data.error)) ||
+      (data && data.errors && Object.values(data.errors).flat().join('\n')) ||
+      `Error ${res.status}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+
+  return data;
+}
+
 const AuthAPI = {
   login: (username, password) =>
     api('/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
@@ -130,9 +177,18 @@ const StockAPI = {
     return api('/stock' + (q ? `?${q}` : ''));
   },
   create: (body) => api('/stock', { method: 'POST', body: JSON.stringify(body) }),
+  createForm: (formData) => apiForm('/stock', formData, 'POST'),
   update: (id, body) => api(`/stock/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  updateForm: (id, formData) => apiForm(`/stock/${id}`, formData, 'PUT'),
+  buscarFoto: (q, categoria = '') => {
+    const p = new URLSearchParams({ q, categoria });
+    return api('/buscar-foto-stock?' + p.toString());
+  },
   ajustar: (id, operacion, cantidad) =>
-    api(`/stock/${id}/ajuste`, { method: 'PATCH', body: JSON.stringify({ operacion, cantidad }) }),
+    api(`/stock/${id}/ajuste`, {
+      method: 'PATCH',
+      body: JSON.stringify({ operacion, cantidad }),
+    }),
   destroy: (id) => api(`/stock/${id}`, { method: 'DELETE' }),
 };
 

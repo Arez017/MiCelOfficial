@@ -4,20 +4,23 @@ namespace App\Http\Controllers;
 
 use App\Models\Recibo;
 use App\Models\ServiceOrder;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class ReciboController extends Controller
 {
-    /**
-     * GET /api/recibos
-     * Un Técnico solo ve los recibos que él emitió.
-     */
+    /** Hora Bolivia (El Alto / La Paz) */
+    private function ahoraBO(): Carbon
+    {
+        return Carbon::now('America/La_Paz');
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
         $query = Recibo::with(['orden', 'tecnico', 'sucursal']);
 
-        if ($user->esTecnico()) {
+        if (method_exists($user, 'esTecnico') && $user->esTecnico()) {
             $query->where('tecnico_id', $user->id);
         }
 
@@ -29,21 +32,18 @@ class ReciboController extends Controller
             });
         }
 
-        return response()->json($query->orderByDesc('id')->get());
+        return response()->json(
+            $query->orderByDesc('id')->get()->map(fn ($r) => $this->formatRecibo($r))
+        );
     }
 
     public function show(Request $request, Recibo $recibo)
     {
         $this->assertPuedeVer($request, $recibo);
 
-        return response()->json($recibo->load(['orden', 'tecnico', 'sucursal']));
+        return response()->json($this->formatRecibo($recibo->load(['orden', 'tecnico', 'sucursal'])));
     }
 
-    /**
-     * POST /api/recibos
-     * Reemplaza generarRecibo() — normalmente se dispara al marcar
-     * una orden como "Listo" y cobrar. Puede ir ligado a una orden o suelto.
-     */
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -60,25 +60,22 @@ class ReciboController extends Controller
         ]);
 
         $user = $request->user();
+        $ahora = $this->ahoraBO();
+
         $data['tecnico_id'] = $user->id;
         $data['num_recibo'] = $this->siguienteNumero();
-        $data['hora'] = now()->format('H:i');
-        $data['fecha'] = now()->toDateString();
+        $data['hora'] = $ahora->format('H:i');       // ej. 19:30 hora Bolivia
+        $data['fecha'] = $ahora->toDateString();     // ej. 2026-10-25
 
-        // Si viene de una orden, la marca como pagada automáticamente
         if (! empty($data['orden_id'])) {
             ServiceOrder::where('id', $data['orden_id'])->update(['status' => 'listo']);
         }
 
         $recibo = Recibo::create($data);
 
-        return response()->json($recibo->load(['orden', 'tecnico', 'sucursal']), 201);
+        return response()->json($this->formatRecibo($recibo->load(['orden', 'tecnico', 'sucursal'])), 201);
     }
 
-    /**
-     * PUT /api/recibos/{recibo}
-     * Reemplaza guardarEdicionRecibo().
-     */
     public function update(Request $request, Recibo $recibo)
     {
         $this->assertPuedeVer($request, $recibo);
@@ -96,22 +93,71 @@ class ReciboController extends Controller
 
         $recibo->update($data);
 
-        return response()->json($recibo->load(['orden', 'tecnico', 'sucursal']));
+        return response()->json($this->formatRecibo($recibo->load(['orden', 'tecnico', 'sucursal'])));
     }
 
-    // ===== Helpers =====
+    public function destroy(Request $request, Recibo $recibo)
+    {
+        $this->assertPuedeVer($request, $recibo);
+        $recibo->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function formatRecibo(Recibo $r): array
+    {
+        // Normalizar fecha por si viene cast a datetime ISO
+        $fecha = $r->fecha;
+        if ($fecha instanceof \DateTimeInterface) {
+            $fecha = Carbon::instance($fecha)->timezone('America/La_Paz')->toDateString();
+        } elseif (is_string($fecha) && str_contains($fecha, 'T')) {
+            try {
+                $fecha = Carbon::parse($fecha)->timezone('America/La_Paz')->toDateString();
+            } catch (\Throwable $e) {
+                $fecha = substr($fecha, 0, 10);
+            }
+        }
+
+        $hora = $r->hora;
+        if (is_string($hora) && strlen($hora) > 5) {
+            // "19:30:00" → "19:30"
+            $hora = substr($hora, 0, 5);
+        }
+
+        return [
+            'id' => $r->id,
+            'num_recibo' => $r->num_recibo,
+            'orden_id' => $r->orden_id,
+            'cliente' => $r->cliente,
+            'telefono' => $r->telefono,
+            'equipo' => $r->equipo,
+            'servicio' => $r->servicio,
+            'monto' => (float) $r->monto,
+            'pago' => $r->pago,
+            'tecnico_id' => $r->tecnico_id,
+            'sucursal_id' => $r->sucursal_id,
+            'obs' => $r->obs,
+            'tipo' => $r->tipo,
+            'fecha' => $fecha,
+            'hora' => $hora,
+            'orden' => $r->relationLoaded('orden') ? $r->orden : null,
+            'tecnico' => $r->relationLoaded('tecnico') ? $r->tecnico : null,
+            'sucursal' => $r->relationLoaded('sucursal') ? $r->sucursal : null,
+        ];
+    }
 
     private function assertPuedeVer(Request $request, Recibo $recibo): void
     {
         $user = $request->user();
-        if ($user->esTecnico() && $recibo->tecnico_id !== $user->id) {
-            abort(403, 'No puedes ver recibos de otro técnico.');
+        if (method_exists($user, 'esTecnico') && $user->esTecnico() && (int) $recibo->tecnico_id !== (int) $user->id) {
+            abort(403, 'No puedes ver este recibo.');
         }
     }
 
     private function siguienteNumero(): string
     {
         $ultimo = Recibo::orderByDesc('id')->value('id') ?? 0;
-        return 'REC-' . str_pad((string) ($ultimo + 1), 4, '0', STR_PAD_LEFT);
+
+        return 'REC-'.str_pad((string) ($ultimo + 1), 4, '0', STR_PAD_LEFT);
     }
 }

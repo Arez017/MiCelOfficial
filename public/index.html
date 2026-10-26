@@ -3,13 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MiCel — Sistema de Gestión</title>
+  <title>MiCEL — Sistema de Gestión</title>
+  <link rel="icon" type="image/svg+xml" href="img/logo-icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css?v=3">
 <link rel="stylesheet" href="css/extensions.css">
+
+<div id="toast-stack"></div>
+<div id="stock-toast" class="hidden">
+  <div class="st-head">
+    <span>⚠️ Alerta de stock</span>
+    <button type="button" class="st-x" onclick="cerrarToastStock()" title="Cerrar">×</button>
+  </div>
+  <div id="stock-toast-msg"></div>
+  <button type="button" class="btn-sm btn-sm-primary" style="margin-top:10px" onclick="nav('stock', document.getElementById('nav-stock')||document.querySelector('[onclick*=stock]'));cerrarToastStock()">Ver stock</button>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
+  <link rel="stylesheet" href="css/micel-polish.css">
 </head>
 <body>
 
@@ -38,8 +51,8 @@
  
     <div class="login-card">
       <div class="login-logo">
-        <div class="logo-icon">MC</div>
-        <h1>MiCel</h1>
+        <img src="img/logo-micel.svg" alt="MiCEL" class="login-logo-img" width="120" height="132">
+        <h1>Mi<span class="cel-yellow">CEL</span></h1>
         <p>Sistema de Gestión Integral v1.0</p>
       </div>
       <div class="form-group"><label>Usuario</label><input type="text" id="login-user" placeholder="ej: rramos"></div>
@@ -84,8 +97,8 @@
   <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <div class="logo-icon-sm">MC</div>
-      <div><div class="sidebar-name">MiCel</div><div class="sidebar-sub">Sistema de Gestión</div></div>
+      <img src="img/logo-icon.svg" alt="MiCEL" class="sidebar-logo-img" width="40" height="40">
+      <div><div class="sidebar-name">Mi<span class="cel-yellow">CEL</span></div><div class="sidebar-sub">Sistema de Gestión</div></div>
     </div>
     <nav class="sidebar-nav">
       <a class="nav-item" id="nav-historial" onclick="nav('historial',this)">
@@ -173,19 +186,51 @@
       <!-- DASHBOARD -->
       <div class="panel active" id="panel-dashboard">
         <div class="metrics-grid">
-          <div class="metric-card"><div class="metric-label">Órdenes activas</div><div class="metric-value">18</div><div class="metric-trend positive">↑ 3 ingresaron hoy</div></div>
-          <div class="metric-card"><div class="metric-label">Ingresos del mes</div><div class="metric-value">Bs 8,240</div><div class="metric-trend positive">↑ 12% vs mes anterior</div></div>
-          <div class="metric-card"><div class="metric-label">Stock crítico</div><div class="metric-value danger">4</div><div class="metric-trend negative">repuestos bajo mínimo</div></div>
-          <div class="metric-card"><div class="metric-label">Clientes atendidos</div><div class="metric-value">62</div><div class="metric-trend positive">este mes</div></div>
+          <div class="metric-card metric-click" role="button" tabindex="0" onclick="dashGo('ordenes')" title="Ver órdenes">
+            <div class="metric-label">Órdenes activas</div>
+            <div class="metric-value" id="dash-m-activas">—</div>
+            <div class="metric-trend positive" id="dash-m-activas-trend">Cargando…</div>
+          </div>
+          <div class="metric-card metric-click" role="button" tabindex="0" onclick="dashGo('reportes')" title="Ver reportes e ingresos">
+            <div class="metric-label">Ingresos (listos + ventas)</div>
+            <div class="metric-value" id="dash-m-ingresos">—</div>
+            <div class="metric-trend positive" id="dash-m-ingresos-trend">Órdenes listas y ventas</div>
+          </div>
+          <div class="metric-card metric-click" role="button" tabindex="0" onclick="dashGo('stock')" title="Ver stock crítico">
+            <div class="metric-label">Stock crítico</div>
+            <div class="metric-value" id="dash-m-stock">—</div>
+            <div class="metric-trend negative" id="dash-m-stock-trend">repuestos bajo mínimo</div>
+          </div>
+          <div class="metric-card metric-click" role="button" tabindex="0" onclick="dashGo('clientes')" title="Ver clientes">
+            <div class="metric-label">Clientes atendidos</div>
+            <div class="metric-value" id="dash-m-clientes">—</div>
+            <div class="metric-trend positive" id="dash-m-clientes-trend">con órdenes registradas</div>
+          </div>
         </div>
-        <div class="alerts">
-          <div class="alert alert-warn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><strong>Stock crítico:</strong> Pantallas Samsung A32 (2) · Baterías Xiaomi Redmi 9 (1) · Flex cámara Redmi 9 (0)</div>
-          <div class="alert alert-info"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>3 órdenes listos para entrega — clientes notificados</div>
+        <div class="alerts" id="dash-alerts">
+          <div class="alert alert-info">Cargando alertas…</div>
         </div>
         <div class="card">
-          <div class="card-header"><h3 class="card-title">Últimas órdenes</h3><button class="btn-link" onclick="nav('ordenes',document.querySelectorAll('.nav-item')[1])">Ver todas →</button></div>
-          <table class="table"><thead><tr><th>Código</th><th>Cliente</th><th>Equipo — Servicio</th><th>Técnico</th><th>Sucursal</th><th>Estado</th></tr></thead>
-          <tbody id="dash-orders"></tbody></table>
+          <div class="card-header">
+            <h3 class="card-title">Últimas órdenes</h3>
+            <button type="button" class="btn-link" onclick="dashGo('ordenes')">Ver todas →</button>
+          </div>
+          <table class="table">
+            <thead><tr><th>Código</th><th>Cliente</th><th>Equipo — Servicio</th><th>Técnico</th><th>Sucursal</th><th>Estado</th></tr></thead>
+            <tbody id="dash-orders"></tbody>
+          </table>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-header"><h3 class="card-title">Accesos rápidos</h3></div>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;padding:4px 0 8px">
+            <button type="button" class="btn-primary" onclick="openModal('orden')">+ Nueva orden</button>
+            <button type="button" class="btn-secondary" onclick="dashGo('ordenes')">Órdenes</button>
+            <button type="button" class="btn-secondary" onclick="dashGo('stock')">Stock</button>
+            <button type="button" class="btn-secondary" onclick="dashGo('recibos')">Recibos</button>
+            <button type="button" class="btn-secondary" onclick="dashGo('reportes')">Reportes</button>
+            <button type="button" class="btn-secondary" onclick="dashGo('celulares')">Venta celulares</button>
+            <button type="button" class="btn-secondary" onclick="dashGo('clientes')">Clientes</button>
+          </div>
         </div>
       </div>
 
@@ -215,7 +260,18 @@
             <input class="input-search" placeholder="Buscar repuesto o categoría..." oninput="filterStock(this.value)">
           </div>
           <table class="table">
-            <thead><tr><th>ID</th><th>Repuesto</th><th>Categoría</th><th>Stock</th><th>Mínimo</th><th>Precio</th><th>Nivel</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <thead><tr>
+              <th>Foto</th>
+              <th>ID</th>
+              <th>Repuesto</th>
+              <th>Categoría</th>
+              <th>Stock</th>
+              <th>Mínimo</th>
+              <th>Precio</th>
+              <th>Nivel</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr></thead>
             <tbody id="stock-body"></tbody>
           </table>
         </div>
@@ -619,7 +675,7 @@
     <div class="modal-header"><h3>Nueva Orden de Servicio</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="form-grid">
       <div class="form-group"><label>Cliente *</label><input type="text" id="modal-client" placeholder="Nombre completo"></div>
-      <div class="form-group"><label>Teléfono</label><input type="text" id="modal-phone" placeholder="7XXXXXXX"></div>
+      <div class="form-group"><label>Teléfono <span style="color:var(--gray-400);font-weight:400">(opcional)</span></label><input type="text" id="modal-phone" placeholder="Ej: 71234567"></div>
       <div class="form-group"><label>Equipo (marca y modelo) *</label><input type="text" id="modal-device" placeholder="Ej: Samsung Galaxy A32"></div>
       <div class="form-group"><label>Monto estimado (Bs)</label><input type="number" id="modal-monto" placeholder="0.00"></div>
       <div class="form-group" style="grid-column:span 2"><label>Servicio solicitado *</label>
@@ -652,7 +708,7 @@
     <input type="hidden" id="edit-order-id">
     <div class="form-grid">
       <div class="form-group"><label>Cliente</label><input type="text" id="edit-order-client"></div>
-      <div class="form-group"><label>Teléfono</label><input type="text" id="edit-order-phone"></div>
+      <div class="form-group"><label>Teléfono <span style="color:var(--gray-400);font-weight:400">(opcional)</span></label><input type="text" id="edit-order-phone" placeholder="Ej: 71234567"></div>
       <div class="form-group"><label>Equipo</label><input type="text" id="edit-order-device"></div>
       <div class="form-group"><label>Servicio</label><input type="text" id="edit-order-service"></div>
       <div class="form-group"><label>Monto final (Bs) ← precio del técnico/admin</label><input type="number" id="edit-order-monto" placeholder="0.00"></div>
@@ -690,6 +746,18 @@
       <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="new-rep-precio" placeholder="0.00"></div>
       <div class="form-group"><label>Cantidad inicial</label><input type="number" id="new-rep-qty" placeholder="0" value="0"></div>
       <div class="form-group"><label>Stock mínimo</label><input type="number" id="new-rep-min" placeholder="5" value="5"></div>
+      <div class="form-group" style="grid-column:span 2"><label>Foto del producto (opcional)</label>
+        <input type="file" id="new-rep-foto" accept="image/*">
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="btn-secondary" onclick="buscarFotoLibreRepuesto('new')">🔎 Foto libre (CC)</button>
+          <label style="font-size:12px;color:var(--gray-400);display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="new-rep-auto-foto" checked> Auto al guardar
+          </label>
+        </div>
+        <input type="hidden" id="new-rep-foto-url" value="">
+        <div style="margin-top:8px"><img id="new-rep-foto-prev" alt="" style="display:none;max-height:80px;border-radius:8px;border:1px solid #333"></div>
+        <div id="new-rep-foto-src" style="font-size:11px;color:var(--gray-400);margin-top:4px"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -709,6 +777,18 @@
       <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="edit-rep-precio"></div>
       <div class="form-group"><label>Stock actual</label><input type="number" id="edit-rep-qty"></div>
       <div class="form-group"><label>Stock mínimo</label><input type="number" id="edit-rep-min"></div>
+      <div class="form-group" style="grid-column:span 2"><label>Foto del producto</label>
+        <input type="file" id="edit-rep-foto" accept="image/*">
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="btn-secondary" onclick="buscarFotoLibreRepuesto('edit')">🔎 Foto libre (CC)</button>
+          <label style="font-size:12px;color:var(--gray-400);display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="edit-rep-auto-foto"> Auto buscar si no hay foto
+          </label>
+        </div>
+        <input type="hidden" id="edit-rep-foto-url" value="">
+        <div style="margin-top:8px"><img id="edit-rep-foto-prev" alt="" style="max-height:80px;border-radius:8px;display:none;border:1px solid #333"></div>
+        <div id="edit-rep-foto-src" style="font-size:11px;color:var(--gray-400);margin-top:4px"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -1145,6 +1225,17 @@
       <button class="btn-primary" onclick="descargarQR()">Descargar QR</button>
     </div>
   </div>
+</div>
+
+
+<div id="toast-stack"></div>
+<div id="stock-toast" class="hidden">
+  <div class="st-head">
+    <span>⚠️ Alerta de stock</span>
+    <button type="button" class="st-x" onclick="cerrarToastStock()" title="Cerrar">×</button>
+  </div>
+  <div id="stock-toast-msg"></div>
+  <button type="button" class="btn-sm btn-sm-primary" style="margin-top:10px" onclick="nav('stock', document.getElementById('nav-stock')||document.querySelector('[onclick*=stock]'));cerrarToastStock()">Ver stock</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>

@@ -16,6 +16,7 @@ class StockItem extends Model
         'qty',
         'min',
         'precio',
+        'foto_path',
     ];
 
     protected function casts(): array
@@ -27,7 +28,18 @@ class StockItem extends Model
         ];
     }
 
-    // ===== Equivalentes a stockBadge()/stockColor() de app.js =====
+    public function getFotoUrlAttribute(): ?string
+    {
+        if (! $this->foto_path) {
+            return null;
+        }
+        if (str_starts_with((string) $this->foto_path, 'http://')
+            || str_starts_with((string) $this->foto_path, 'https://')) {
+            return $this->foto_path;
+        }
+
+        return asset('storage/'.$this->foto_path);
+    }
 
     public function getSinStockAttribute(): bool
     {
@@ -44,10 +56,10 @@ class StockItem extends Model
         return $this->qty >= $this->min;
     }
 
-    /** Porcentaje de barra de progreso, igual a tu cálculo: qty / (min*2) */
     public function getPorcentajeAttribute(): int
     {
         $base = max($this->min * 2, 1);
+
         return min(100, (int) round(($this->qty / $base) * 100));
     }
 }

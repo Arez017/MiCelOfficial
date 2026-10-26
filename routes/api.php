@@ -39,13 +39,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/sucursales/{sucursal}/activa', [SucursalController::class, 'toggleActiva']);
     Route::delete('/sucursales/{sucursal}', [SucursalController::class, 'destroy']);
 
+    // Foto libre — ruta SEPARADA (no es /stock/...)
+    Route::get('/buscar-foto-stock', [StockItemController::class, 'buscarFoto']);
+
     // Stock
     Route::get('/stock', [StockItemController::class, 'index']);
     Route::post('/stock', [StockItemController::class, 'store']);
-    Route::get('/stock/{stock}', [StockItemController::class, 'show']);
-    Route::put('/stock/{stock}', [StockItemController::class, 'update']);
-    Route::patch('/stock/{stock}/ajuste', [StockItemController::class, 'ajustar']);
-    Route::delete('/stock/{stock}', [StockItemController::class, 'destroy']);
+    Route::get('/stock/{stock}', [StockItemController::class, 'show'])->whereNumber('stock');
+    Route::put('/stock/{stock}', [StockItemController::class, 'update'])->whereNumber('stock');
+    Route::post('/stock/{stock}', [StockItemController::class, 'update'])->whereNumber('stock');
+    Route::patch('/stock/{stock}/ajuste', [StockItemController::class, 'ajustar'])->whereNumber('stock');
+    Route::delete('/stock/{stock}', [StockItemController::class, 'destroy'])->whereNumber('stock');
 
     // Órdenes
     Route::get('/orders', [ServiceOrderController::class, 'index']);
@@ -119,4 +123,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/celulares/resumen', [CelularVentaController::class, 'resumen']);
     Route::get('/celulares/estado-cuenta', [CelularVentaController::class, 'estadoCuenta']);
     Route::patch('/cuotas/{cuota}/pagar', [CelularVentaController::class, 'marcarCuotaPagada']);
+
+
 });

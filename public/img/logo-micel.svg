@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" width="200" height="220">
+  <!-- Phone body -->
+  <rect x="48" y="18" width="104" height="160" rx="16" fill="#1a1a1a" stroke="#111" stroke-width="3"/>
+  <rect x="58" y="38" width="84" height="110" rx="4" fill="#2a2a2a"/>
+  <!-- Home bar -->
+  <rect x="85" y="158" width="30" height="6" rx="3" fill="#444"/>
+  <!-- Yellow wrench (stylized C around phone) -->
+  <path d="M 30 70
+           C 10 90, 10 130, 35 150
+           L 48 138
+           C 32 125, 32 95, 45 82
+           Z" fill="#F5C518"/>
+  <path d="M 170 70
+           C 190 90, 190 130, 165 150
+           L 152 138
+           C 168 125, 168 95, 155 82
+           Z" fill="#F5C518"/>
+  <!-- Wrench heads simplified as circles -->
+  <circle cx="28" cy="68" r="14" fill="#F5C518"/>
+  <circle cx="28" cy="68" r="6" fill="#1a1a1a"/>
+  <circle cx="172" cy="68" r="14" fill="#F5C518"/>
+  <circle cx="172" cy="68" r="6" fill="#1a1a1a"/>
+  <!-- Wordmark -->
+  <text x="100" y="205" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="28" font-weight="900">
+    <tspan fill="#1a1a1a">mi</tspan><tspan fill="#F5C518">CEL</tspan>
+  </text>
+</svg>
