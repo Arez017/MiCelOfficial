@@ -4,7 +4,7 @@
   position: fixed;
   right: 20px;
   bottom: 20px;
-  z-index: 99999;
+  z-index: 9001;
   display: flex;
   flex-direction: column-reverse;
   gap: 10px;
@@ -64,30 +64,66 @@
   to { opacity: 0; transform: translateY(10px) scale(.96); }
 }
 
-/* Stock crítico flotante (abajo derecha, encima del stack) */
+/* Stock crítico — cuadradito flotante (MVP) */
 #stock-toast {
   position: fixed;
   right: 20px;
   bottom: 20px;
-  z-index: 99990;
-  min-width: 260px;
-  max-width: 340px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: linear-gradient(145deg, #1c1214, #16161a);
-  border: 1px solid rgba(255,20,64,.35);
-  box-shadow: 0 12px 40px rgba(255,20,64,.15), 0 8px 24px rgba(0,0,0,.4);
-  color: #f4f4f5;
-  font-size: 13px;
-  animation: toastIn .4s ease;
+  z-index: 9000;
+  width: min(300px, calc(100vw - 32px));
+  padding: 0;
+  border-radius: 12px;
+  background: #1a1a1e;
+  border: 1px solid rgba(255, 20, 64, 0.4);
+  border-left: 4px solid #ff1440;
+  box-shadow: 0 16px 48px rgba(0,0,0,.55), 0 0 0 1px rgba(255,20,64,.12);
+  color: #e4e4e7;
+  font-size: 12.5px;
+  line-height: 1.45;
+  animation: toastIn .4s cubic-bezier(.2,.9,.3,1);
+  overflow: hidden;
 }
 #stock-toast.hidden { display: none !important; }
 #stock-toast .st-head {
-  display: flex; justify-content: space-between; align-items: center;
-  font-weight: 700; margin-bottom: 6px; color: #ff6b8a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px 8px;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fbbf24;
+  letter-spacing: 0.2px;
 }
+#stock-toast .st-head .st-ico { margin-right: 6px; }
 #stock-toast button.st-x {
-  background: none; border: 0; color: #a1a1aa; cursor: pointer; font-size: 16px;
+  background: none; border: 0; color: #71717a; cursor: pointer;
+  font-size: 18px; line-height: 1; padding: 0 2px;
+}
+#stock-toast button.st-x:hover { color: #fff; }
+#stock-toast-msg {
+  padding: 0 14px 10px;
+  color: #a1a1aa;
+}
+#stock-toast-msg .st-line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+#stock-toast-msg .st-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  margin-top: 5px; flex-shrink: 0;
+}
+#stock-toast-msg .st-dot.red { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,.5); }
+#stock-toast-msg .st-dot.amber { background: #f59e0b; box-shadow: 0 0 8px rgba(245,158,11,.4); }
+#stock-toast .st-actions {
+  padding: 0 14px 14px;
+  display: flex;
+  gap: 8px;
+}
+#stock-toast .st-actions .btn-sm {
+  flex: 1;
+  justify-content: center;
 }
 
 /* Stock con foto */
@@ -195,3 +231,634 @@
 .cel-yellow { color: #F5C518; }
 .login-logo h1 { letter-spacing: 1px; }
 .sidebar-name { font-weight: 800; }
+
+
+/* Tablas: hover y empty */
+table.table tbody tr:hover td {
+  background: rgba(255, 20, 64, 0.06);
+}
+table.table tbody tr {
+  transition: background .12s ease;
+}
+.empty-row td {
+  border-bottom: none !important;
+}
+
+
+/* Modal siempre por encima del toast de stock */
+.modal-overlay {
+  z-index: 100050 !important;
+}
+.modal-box {
+  z-index: 100051 !important;
+  position: relative;
+  max-height: min(90vh, 900px);
+  overflow-y: auto;
+}
+/* Texto legible en modales (tema oscuro) */
+.modal-box,
+.modal-box label,
+.modal-box h3,
+.modal-box .form-group label {
+  color: var(--gray-100, #f4f4f5) !important;
+}
+.modal-box input,
+.modal-box select,
+.modal-box textarea {
+  color: var(--gray-100, #f4f4f5);
+  background: var(--gray-900, #18181b);
+  border-color: var(--border, #333);
+}
+
+
+/* ===== Login: baterías antes / después ===== */
+.phone-scene {
+  position: relative;
+}
+.scene-label {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-top: 8px;
+  opacity: 0.85;
+}
+.scene-label.bad { color: #f87171; }
+.scene-label.good { color: #4ade80; }
+
+.batt-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 14px;
+  animation: battFloat 3.5s ease-in-out infinite;
+}
+.batt-bad { animation-delay: 0s; }
+.batt-good { animation-delay: 1.2s; }
+
+.batt-caption {
+  font-size: 10px;
+  margin-top: 6px;
+  color: #a1a1aa;
+  font-weight: 600;
+}
+.batt-bad .batt-caption { color: #fca5a5; }
+.batt-good .batt-caption { color: #86efac; }
+
+.batt-bad svg {
+  filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.35));
+  animation: battPulse 2s ease-in-out infinite;
+}
+.batt-good svg {
+  filter: drop-shadow(0 0 12px rgba(34, 197, 94, 0.4));
+}
+.batt-fill {
+  animation: battCharge 2.8s ease-in-out infinite alternate;
+  transform-origin: bottom;
+}
+
+@keyframes battFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes battPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04) rotate(-1deg); }
+}
+@keyframes battCharge {
+  from { opacity: 0.75; }
+  to { opacity: 1; }
+}
+
+.login-tagline {
+  font-size: 12px !important;
+  color: #a1a1aa !important;
+  margin-top: 4px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.2px;
+}
+
+/* En pantallas chicas ocultar baterías para no saturar */
+@media (max-width: 900px) {
+  .batt-scene { display: none; }
+  .scene-label { display: none; }
+}
+
+
+/* ===== Login ampliado ===== */
+.login-fx {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.login-screen { position: relative; }
+.login-stage { position: relative; z-index: 1; }
+
+.fx-dot {
+  position: absolute;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 20, 64, 0.35);
+  animation: fxDrift 12s linear infinite;
+}
+.fx-dot:nth-child(1) { left: 10%; top: 20%; animation-duration: 14s; }
+.fx-dot:nth-child(2) { left: 25%; top: 70%; background: rgba(245,197,24,.3); animation-duration: 18s; }
+.fx-dot:nth-child(3) { left: 70%; top: 15%; animation-duration: 11s; }
+.fx-dot:nth-child(4) { left: 85%; top: 55%; background: rgba(34,197,94,.25); animation-duration: 16s; }
+.fx-dot:nth-child(5) { left: 50%; top: 80%; animation-duration: 13s; }
+.fx-dot:nth-child(6) { left: 40%; top: 10%; background: rgba(245,197,24,.25); animation-duration: 20s; }
+
+@keyframes fxDrift {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  15% { opacity: .7; }
+  50% { transform: translateY(-40vh) scale(1.4); opacity: .4; }
+  100% { transform: translateY(-80vh) scale(.6); opacity: 0; }
+}
+
+.props-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.prop-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.08);
+  white-space: nowrap;
+}
+.prop-chip-bad {
+  border-color: rgba(239,68,68,.35);
+  color: #fecaca;
+  animation: chipShake 4s ease-in-out infinite;
+}
+.prop-chip-good {
+  border-color: rgba(34,197,94,.4);
+  color: #bbf7d0;
+  animation: chipGlow 2.5s ease-in-out infinite;
+}
+
+@keyframes chipShake {
+  0%, 100% { transform: translateX(0); }
+  2% { transform: translateX(-2px); }
+  4% { transform: translateX(2px); }
+  6% { transform: translateX(0); }
+}
+@keyframes chipGlow {
+  0%, 100% { box-shadow: 0 0 0 rgba(34,197,94,0); }
+  50% { box-shadow: 0 0 12px rgba(34,197,94,.25); }
+}
+
+.login-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin: 12px 0 4px;
+}
+.login-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,20,64,.12);
+  border: 1px solid rgba(255,20,64,.25);
+  color: #fda4af;
+  letter-spacing: 0.3px;
+}
+
+/* Refuerzo animación celulares si existe */
+.phone-broken .phone-3d {
+  animation: phoneTiltBad 5s ease-in-out infinite;
+}
+.phone-fixed .phone-3d {
+  animation: phoneTiltGood 4s ease-in-out infinite;
+}
+@keyframes phoneTiltBad {
+  0%, 100% { transform: rotate(-6deg) translateY(0); }
+  50% { transform: rotate(-3deg) translateY(4px); }
+}
+@keyframes phoneTiltGood {
+  0%, 100% { transform: rotate(6deg) translateY(0); }
+  50% { transform: rotate(4deg) translateY(-5px); }
+}
+
+@media (max-width: 900px) {
+  .props-col { display: none; }
+  .login-fx { display: none; }
+}
+
+
+/* ===== Login MÁS ANIMADO ===== */
+.login-screen {
+  overflow: hidden;
+}
+
+/* Fondo con pulso sutil */
+.login-screen::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(ellipse 50% 40% at 15% 50%, rgba(239, 68, 68, 0.12), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 85% 50%, rgba(34, 197, 94, 0.12), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 50% 20%, rgba(255, 20, 64, 0.08), transparent 50%);
+  animation: bgPulse 6s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes bgPulse {
+  from { opacity: 0.6; transform: scale(1); }
+  to { opacity: 1; transform: scale(1.05); }
+}
+
+/* Celular roto: vibra + se inclina */
+.phone-broken .phone-3d {
+  animation: phoneBroken 2.2s ease-in-out infinite !important;
+  transform-origin: center bottom;
+}
+@keyframes phoneBroken {
+  0%, 100% { transform: rotate(-8deg) translate(0, 0) scale(1); }
+  15% { transform: rotate(-10deg) translate(-2px, 1px) scale(1.02); }
+  30% { transform: rotate(-5deg) translate(2px, -1px); }
+  45% { transform: rotate(-9deg) translate(-1px, 2px); }
+  60% { transform: rotate(-6deg) translate(1px, 0); }
+  75% { transform: rotate(-11deg) translate(-2px, 1px) scale(0.99); }
+}
+
+/* Grietas parpadean */
+.crack-line {
+  animation: crackFlash 1.8s ease-in-out infinite;
+  stroke: #f87171 !important;
+  stroke-width: 1.5;
+}
+.crack-line2 { animation-delay: 0.3s; }
+.crack-line3 { animation-delay: 0.6s; }
+@keyframes crackFlash {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; filter: drop-shadow(0 0 4px #ef4444); }
+}
+
+/* Shards vuelan más */
+.shard {
+  animation: shardFly 2.5s ease-in-out infinite !important;
+}
+.shard1 { animation-delay: 0s; }
+.shard2 { animation-delay: 0.2s; }
+.shard3 { animation-delay: 0.4s; }
+.shard4 { animation-delay: 0.6s; }
+.shard5 { animation-delay: 0.8s; }
+@keyframes shardFly {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.85; }
+  50% { transform: translate(var(--sx, 12px), var(--sy, -18px)) rotate(25deg); opacity: 1; }
+}
+.shard1 { --sx: -14px; --sy: -20px; }
+.shard2 { --sx: 16px; --sy: -12px; }
+.shard3 { --sx: -10px; --sy: 14px; }
+.shard4 { --sx: 18px; --sy: 10px; }
+.shard5 { --sx: 8px; --sy: -22px; }
+
+/* Celular bueno: flota + brillo */
+.phone-fixed .phone-3d {
+  animation: phoneFixed 3s ease-in-out infinite !important;
+  filter: drop-shadow(0 0 16px rgba(34, 197, 94, 0.35));
+}
+@keyframes phoneFixed {
+  0%, 100% { transform: rotate(7deg) translateY(0) scale(1); }
+  50% { transform: rotate(5deg) translateY(-14px) scale(1.04); }
+}
+
+/* Scan line más visible */
+.scan-line {
+  animation: scanMove 2s linear infinite !important;
+  background: linear-gradient(transparent, rgba(74, 222, 128, 0.45), transparent) !important;
+  height: 30% !important;
+}
+@keyframes scanMove {
+  0% { top: -30%; opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Check late */
+.check-icon {
+  animation: checkPop 2.5s ease-in-out infinite !important;
+}
+@keyframes checkPop {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 8px #4ade80); }
+}
+
+/* Sparks */
+.spark {
+  animation: sparkBurst 1.6s ease-out infinite !important;
+}
+.spark1 { animation-delay: 0s; }
+.spark2 { animation-delay: 0.5s; }
+.spark3 { animation-delay: 1s; }
+@keyframes sparkBurst {
+  0% { transform: scale(0.4); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: scale(1.6) translateY(-12px); opacity: 0; }
+}
+
+/* Batería mala: hincha y tiembla */
+.batt-bad svg {
+  animation: battExplode 1.8s ease-in-out infinite !important;
+}
+@keyframes battExplode {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.08) rotate(-3deg); }
+  50% { transform: scale(1.12) rotate(2deg); filter: drop-shadow(0 0 14px rgba(239,68,68,.6)); }
+  75% { transform: scale(1.06) rotate(-2deg); }
+}
+
+/* Batería buena: carga sube */
+.batt-fill {
+  animation: battLevel 2.2s ease-in-out infinite !important;
+  transform-box: fill-box;
+  transform-origin: bottom center;
+}
+@keyframes battLevel {
+  0% { transform: scaleY(0.55); opacity: 0.85; }
+  50% { transform: scaleY(1); opacity: 1; }
+  100% { transform: scaleY(0.85); opacity: 0.95; }
+}
+
+.batt-good svg {
+  animation: battFloatGood 2.4s ease-in-out infinite !important;
+}
+@keyframes battFloatGood {
+  0%, 100% { transform: translateY(0); filter: drop-shadow(0 0 10px rgba(34,197,94,.4)); }
+  50% { transform: translateY(-8px); filter: drop-shadow(0 0 18px rgba(34,197,94,.7)); }
+}
+
+/* Chips más vivos */
+.prop-chip-bad {
+  animation: chipBad 2s ease-in-out infinite !important;
+}
+@keyframes chipBad {
+  0%, 90%, 100% { transform: translateX(0); border-color: rgba(239,68,68,.35); }
+  92% { transform: translateX(-3px); }
+  94% { transform: translateX(3px); }
+  96% { transform: translateX(-2px); border-color: rgba(239,68,68,.7); }
+  98% { transform: translateX(2px); }
+}
+
+.prop-chip-good {
+  animation: chipGood 2s ease-in-out infinite !important;
+}
+@keyframes chipGood {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); transform: scale(1); }
+  50% { box-shadow: 0 0 16px 2px rgba(34,197,94,.3); transform: scale(1.04); }
+}
+
+/* Labels parpadean suave */
+.scene-label.bad {
+  animation: labelPulse 2s ease-in-out infinite;
+}
+.scene-label.good {
+  animation: labelPulse 2s ease-in-out infinite 0.5s;
+}
+@keyframes labelPulse {
+  0%, 100% { opacity: 0.7; letter-spacing: 1.5px; }
+  50% { opacity: 1; letter-spacing: 2.5px; text-shadow: 0 0 12px currentColor; }
+}
+
+/* Pills del centro */
+.login-pill {
+  animation: pillIn 0.6s ease backwards;
+}
+.login-pill:nth-child(1) { animation-delay: 0.1s; }
+.login-pill:nth-child(2) { animation-delay: 0.2s; }
+.login-pill:nth-child(3) { animation-delay: 0.3s; }
+.login-pill:nth-child(4) { animation-delay: 0.4s; }
+@keyframes pillIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Logo bounce sutil */
+.login-logo-img {
+  animation: logoBob 3.5s ease-in-out infinite;
+}
+@keyframes logoBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Partículas más rápidas y visibles */
+.fx-dot {
+  width: 5px !important;
+  height: 5px !important;
+  animation-duration: 8s !important;
+}
+.fx-dot:nth-child(odd) {
+  box-shadow: 0 0 8px rgba(255, 20, 64, 0.6);
+}
+.fx-dot:nth-child(even) {
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+}
+
+/* Botón login glow */
+.btn-login {
+  animation: btnGlow 2.5s ease-in-out infinite;
+  position: relative;
+}
+@keyframes btnGlow {
+  0%, 100% { box-shadow: 0 4px 20px rgba(255, 20, 64, 0.25); }
+  50% { box-shadow: 0 4px 32px rgba(255, 20, 64, 0.55); }
+}
+
+/* Flecha mental: de malo a bueno (línea en desktop) */
+@media (min-width: 1100px) {
+  .login-stage::after {
+    content: "⟶";
+    position: absolute;
+    left: 50%;
+    top: 28%;
+    transform: translateX(-50%);
+    font-size: 28px;
+    color: rgba(245, 197, 24, 0.5);
+    animation: arrowPulse 1.5s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 2;
+  }
+  @keyframes arrowPulse {
+    0%, 100% { opacity: 0.35; transform: translateX(-50%) scale(1); }
+    50% { opacity: 0.9; transform: translateX(-40%) scale(1.15); color: #F5C518; }
+  }
+}
+
+
+/* Baterías sin texto — más detalle */
+.batt-caption, .scene-label, .login-tagline, .login-pills, .prop-chip {
+  display: none !important;
+}
+.batt-scene {
+  margin-top: 18px;
+}
+.batt-bad svg, .batt-good svg {
+  width: 56px;
+  height: 105px;
+}
+.props-col {
+  gap: 0;
+}
+/* Quitar flecha de texto del centro si molesta */
+.login-stage::after {
+  display: none !important;
+}
+
+
+/* pack battery size — rectangular phone cells */
+.batt-bad svg, .batt-good svg {
+  width: 72px !important;
+  height: 100px !important;
+}
+.batt-bad svg {
+  filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.45));
+}
+.batt-good svg {
+  filter: drop-shadow(0 0 12px rgba(34, 197, 94, 0.4));
+}
+
+
+/* Teléfono con código de país */
+.phone-field {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: stretch;
+}
+.phone-field .phone-country-select {
+  width: 128px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--gray-900, #18181b);
+  color: var(--gray-100, #f4f4f5);
+  border: 1px solid var(--border, #333);
+  padding: 0 8px;
+}
+.phone-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+
+
+/* Selector de técnico — contraste alto */
+.select-tech-nice,
+select#modal-tech,
+select#edit-order-tech,
+select#venta-tech,
+select#recibo-tech,
+select#ha-tech {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  padding: 10px 36px 10px 12px !important;
+  border-radius: 10px !important;
+  min-height: 44px;
+  width: 100%;
+  background-color: #f4f4f5 !important;   /* fondo claro */
+  color: #18181b !important;              /* texto oscuro */
+  border: 1px solid #a1a1aa !important;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2318181b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+}
+.select-tech-nice:focus,
+select#modal-tech:focus,
+select#edit-order-tech:focus {
+  outline: none;
+  border-color: #ff1440 !important;
+  box-shadow: 0 0 0 3px rgba(255, 20, 64, 0.25);
+}
+.select-tech-nice option,
+select#modal-tech option,
+select#edit-order-tech option,
+select#venta-tech option,
+select#recibo-tech option {
+  background: #ffffff !important;
+  color: #18181b !important;
+  font-weight: 500;
+  padding: 10px;
+}
+
+/* Si el tema del modal es oscuro, fuerza legibilidad en todos los selects del modal de orden */
+#modal-orden select,
+#modal-edit-order select {
+  background-color: #f4f4f5 !important;
+  color: #18181b !important;
+  font-weight: 600;
+  border: 1px solid #a1a1aa !important;
+}
+#modal-orden select option,
+#modal-edit-order select option {
+  background: #fff !important;
+  color: #111 !important;
+}
+
+
+/* ===== Títulos y labels de modales legibles (texto blanco) ===== */
+.modal-overlay .modal-box .modal-header h3,
+.modal-overlay .modal-header h3,
+#modal-orden .modal-header h3,
+.modal-box h3 {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+.modal-overlay .modal-box label,
+.modal-overlay .form-group > label,
+.modal-box .form-group label,
+#modal-orden label,
+#modal-edit-order label,
+#modal-cliente label,
+#modal-recibo label {
+  color: #f4f4f5 !important;
+  font-weight: 600 !important;
+  font-size: 12.5px !important;
+  opacity: 1 !important;
+  letter-spacing: 0.01em;
+}
+
+/* subtítulos grises dentro del label (ej. opcional) */
+.modal-overlay .form-group label span {
+  color: #a1a1aa !important;
+  font-weight: 400 !important;
+}
+
+/* placeholders un poco más visibles */
+.modal-overlay input::placeholder,
+.modal-overlay textarea::placeholder {
+  color: #71717a !important;
+  opacity: 1;
+}
+
+.btn-sm-danger {
+  background: #7f1d1d !important;
+  color: #fecaca !important;
+  border: 1px solid #991b1b !important;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-sm-danger:hover { background: #991b1b !important; }

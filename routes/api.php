@@ -26,6 +26,7 @@ Route::get('/seguimiento/{codigo}', [SeguimientoController::class, 'show']);
 
 // Login de la app móvil — SOLO clientes, cuenta separada del staff
 Route::post('/cliente/login', [ClienteAuthController::class, 'login']);
+Route::post('/cliente/recuperar-password', [ClienteAuthController::class, 'recuperarPassword']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -64,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Clientes
     Route::get('/clientes', [ClienteController::class, 'index']);
     Route::post('/clientes', [ClienteController::class, 'store']);
+    Route::post('/clientes/unificar-duplicados', [ClienteController::class, 'unificarDuplicados']);
     Route::get('/clientes/{cliente}', [ClienteController::class, 'show']);
     Route::put('/clientes/{cliente}', [ClienteController::class, 'update']);
     Route::patch('/clientes/{cliente}/visita', [ClienteController::class, 'registrarVisita']);
@@ -71,12 +73,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/clientes/{cliente}', [ClienteController::class, 'destroy']);
     Route::patch('/clientes/{cliente}/activar', [ClienteController::class, 'toggleActivo']);
 
+
     // Sesión de cliente (app móvil) — comparte el mismo middleware auth:sanctum,
     // pero el token pertenece a un Cliente, no a un User.
+
     Route::post('/cliente/logout', [ClienteAuthController::class, 'logout']);
     Route::get('/cliente/me', [ClienteAuthController::class, 'me']);
+    Route::put('/cliente/perfil', [ClienteAuthController::class, 'updatePerfil']);
+    Route::put('/cliente/password', [ClienteAuthController::class, 'changePassword']);
     Route::get('/cliente/mis-ordenes', [ClienteAuthController::class, 'misOrdenes']);
-    Route::get('/cliente/cupones', [ClienteAuthController::class, 'cupones']);
 
     // Cupones (gestión de staff — solo Admin/SuperAdmin, validado en el controlador)
     Route::get('/cupones', [CuponController::class, 'index']);

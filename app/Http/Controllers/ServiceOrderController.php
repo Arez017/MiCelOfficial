@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cliente;
+use App\Support\ClientePhone;
 use App\Models\ServiceOrder;
 use App\Models\User;
 use App\Services\ClienteFidelidadService;
@@ -198,17 +199,49 @@ class ServiceOrderController extends Controller
             return;
         }
 
+        // Resolver cliente de forma robusta (id → teléfono normalizado → nombre → crear)
+        $cliente = null;
+        if ($order->cliente_id) {
+            $cliente = Cliente::find($order->cliente_id);
+        }
+        if (! $cliente && $order->phone) {
+            $cliente = ClientePhone::findByPhone($order->phone);
+        }
+        if (! $cliente && $order->client) {
+            $cliente = Cliente::whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower(trim($order->client))])->first();
+        }
+        if (! $cliente) {
+            $cliente = $this->resolverOCrearCliente(
+                null,
+                $order->client ?: 'Cliente',
+                $order->phone,
+                $order->sucursal_id
+            );
+        }
+
+        if ($cliente) {
+            if ((int) $order->cliente_id !== (int) $cliente->id) {
+                $order->cliente_id = $cliente->id;
+                $order->save();
+            }
+            // +1 visita por reparación completada
+            $cliente->visits = (int) $cliente->visits + 1;
+            $cliente->last_visit = now();
+            $cliente->save();
+        }
+
         $monto = (float) $order->monto;
         if ($monto <= 0) {
-            return; // sin monto no hay coins
+            return;
         }
 
         ClienteFidelidadService::registrarGasto(
-            $order->cliente_id,
+            $cliente?->id ?? $order->cliente_id,
             $order->phone,
             $monto
         );
     }
+
 
     /**
      * Busca cliente por id / teléfono / nombre; si no existe, lo crea.
@@ -226,9 +259,7 @@ class ServiceOrderController extends Controller
         // 2) por teléfono normalizado
         $phoneNorm = $phone ? preg_replace('/\D+/', '', $phone) : '';
         if ($phoneNorm !== '') {
-            $porTel = Cliente::all()->first(function (Cliente $c) use ($phoneNorm) {
-                return preg_replace('/\D+/', '', (string) $c->phone) === $phoneNorm;
-            });
+            $porTel = ClientePhone::findByPhone($phone);
             if ($porTel) {
                 return $porTel;
             }
@@ -249,10 +280,9 @@ class ServiceOrderController extends Controller
         $ultimo = Cliente::orderByDesc('id')->value('id') ?? 0;
         $code = 'CLI-'.str_pad((string) ($ultimo + 1), 3, '0', STR_PAD_LEFT);
 
-        return Cliente::create([
+        $payload = [
             'code' => $code,
             'name' => trim($nombre),
-            'phone' => $phone ?: null,
             'sucursal_id' => $sucursalId,
             'visits' => 1,
             'last_visit' => now(),
@@ -260,7 +290,23 @@ class ServiceOrderController extends Controller
             'coins' => 0,
             'total_gastado' => 0,
             'es_vip' => false,
-        ]);
+        ];
+
+        // Si hay teléfono, lo guardamos; si no, intentamos null (columna nullable)
+        // o un marcador temporal para no romper NOT NULL en instalaciones viejas
+        if ($phoneNorm !== '') {
+            $payload['phone'] = $phone;
+        } else {
+            $payload['phone'] = 'S/N'; // temporal si la columna sigue NOT NULL
+        }
+
+        try {
+            return Cliente::create($payload);
+        } catch (\Throwable $e) {
+            // Último recurso: no romper la orden si falla el alta de cliente
+            \Log::warning('No se pudo auto-crear cliente: '.$e->getMessage());
+            return null;
+        }
     }
 
     private function formatOrder(ServiceOrder $o): array

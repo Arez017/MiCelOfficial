@@ -11,13 +11,15 @@
 <link rel="stylesheet" href="css/extensions.css">
 
 <div id="toast-stack"></div>
-<div id="stock-toast" class="hidden">
+<div id="stock-toast" class="hidden" role="status" aria-live="polite">
   <div class="st-head">
-    <span>⚠️ Alerta de stock</span>
+    <span><span class="st-ico">⚠️</span>Alerta de inventario</span>
     <button type="button" class="st-x" onclick="cerrarToastStock()" title="Cerrar">×</button>
   </div>
   <div id="stock-toast-msg"></div>
-  <button type="button" class="btn-sm btn-sm-primary" style="margin-top:10px" onclick="nav('stock', document.getElementById('nav-stock')||document.querySelector('[onclick*=stock]'));cerrarToastStock()">Ver stock</button>
+  <div class="st-actions">
+    <button type="button" class="btn-sm btn-sm-primary" onclick="dashGo('stock');cerrarToastStock()">Ver stock</button>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -28,6 +30,10 @@
 
 <!-- LOGIN -->
 <div id="login-screen" class="login-screen">
+  <div class="login-fx" aria-hidden="true">
+    <span class="fx-dot"></span><span class="fx-dot"></span><span class="fx-dot"></span>
+    <span class="fx-dot"></span><span class="fx-dot"></span><span class="fx-dot"></span>
+  </div>
   <div class="login-stage">
  
     <!-- Celular hecho trizas -->
@@ -47,6 +53,46 @@
         <span class="shard shard5"></span>
       </div>
       <div class="phone-shadow"></div>
+      <div class="props-col props-bad">
+                <div class="batt-scene batt-bad" title="">
+          <svg viewBox="0 0 100 140" width="72" height="100" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="packBad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#52525b"/>
+                <stop offset="100%" stop-color="#3f3f46"/>
+              </linearGradient>
+              <linearGradient id="swellR" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#ef4444" stop-opacity="0"/>
+                <stop offset="50%" stop-color="#f97316" stop-opacity="0.55"/>
+                <stop offset="100%" stop-color="#ef4444" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <!-- connector tabs top (phone battery style) -->
+            <rect x="22" y="8" width="14" height="8" rx="1" fill="#a1a1aa"/>
+            <rect x="64" y="8" width="14" height="8" rx="1" fill="#a1a1aa"/>
+            <!-- main rectangular pack — slightly swollen sides -->
+            <path d="M14 18
+                     L86 18
+                     Q96 50 92 78
+                     Q98 110 86 128
+                     L14 128
+                     Q2 110 8 78
+                     Q4 50 14 18 Z"
+                  fill="url(#packBad)" stroke="#b91c1c" stroke-width="2"/>
+            <!-- flat top edge -->
+            <rect x="16" y="18" width="68" height="6" fill="#71717a" opacity="0.5"/>
+            <!-- swelling highlight center -->
+            <ellipse cx="50" cy="75" rx="32" ry="28" fill="url(#swellR)"/>
+            <!-- label area -->
+            <rect x="24" y="40" width="52" height="36" rx="3" fill="#27272a" opacity="0.7"/>
+            <line x1="28" y1="52" x2="72" y2="52" stroke="#f87171" stroke-width="1.2" opacity="0.6"/>
+            <line x1="28" y1="60" x2="60" y2="60" stroke="#f87171" stroke-width="1" opacity="0.4"/>
+            <!-- warning -->
+            <circle cx="50" cy="105" r="11" fill="#450a0a" stroke="#ef4444" stroke-width="1.8"/>
+            <text x="50" y="110" text-anchor="middle" font-size="16" font-weight="bold" fill="#fecaca">!</text>
+          </svg>
+        </div>
+</div>
     </div>
  
     <div class="login-card">
@@ -59,20 +105,7 @@
       <div class="form-group"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••"></div>
       <div id="login-error" style="display:none;background:var(--danger-light);color:var(--danger);padding:8px 12px;border-radius:6px;font-size:13px;text-align:center;margin-bottom:4px">Usuario o contraseña incorrectos</div>
       <button class="btn-login" onclick="doLogin()">Ingresar al sistema</button>
-      <div class="login-users-table">
-        <div class="lut-title">Usuarios del sistema</div>
-        <div class="lut-row lut-header"><span>Usuario</span><span>Contraseña</span><span>Rol</span></div>
-        <div class="lut-row"><span>micel</span><span>1234</span><span class="lut-admin">Admin</span></div>
-        <div class="lut-row"><span>kevsolutions</span><span>1234</span><span class="lut-admin">Admin</span></div>
-        <div class="lut-row"><span>tec03</span><span>1234</span><span class="lut-tec">Técnico</span></div>
-        <div class="lut-row"><span>tec04</span><span>1234</span><span class="lut-tec">Técnico</span></div>
-        <div class="lut-row"><span>tec05</span><span>1234</span><span class="lut-tec">Técnico</span></div>
-        <div class="lut-row"><span>tec06</span><span>1234</span><span class="lut-tec">Técnico</span></div>
-        <div class="lut-row"><span>tec07</span><span>1234</span><span class="lut-tec">Técnico</span></div>
-        <div class="lut-row"><span>tec08</span><span>1234</span><span class="lut-tec">Técnico</span></div>
-        <div class="lut-row"><span>tec09</span><span>1234</span><span class="lut-tec">Técnico</span></div>
-        <div class="lut-row"><span>tec10 <span style="color:var(--danger);font-size:10px">(inactivo)</span></span><span>1234</span><span class="lut-tec">Técnico</span></div>
-      </div>
+
     </div>
  
     <!-- Celular "milagro" (reparado) -->
@@ -87,6 +120,40 @@
         <span class="spark spark3"></span>
       </div>
       <div class="phone-shadow"></div>
+      <div class="props-col props-good">
+        <div class="batt-scene batt-good" title="">
+          <svg viewBox="0 0 100 140" width="72" height="100" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="packGood" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3f3f46"/>
+                <stop offset="100%" stop-color="#27272a"/>
+              </linearGradient>
+              <linearGradient id="stripGreen" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#4ade80"/>
+                <stop offset="100%" stop-color="#16a34a"/>
+              </linearGradient>
+            </defs>
+            <!-- + / − tabs -->
+            <rect x="22" y="8" width="14" height="8" rx="1" fill="#e4e4e7"/>
+            <rect x="64" y="8" width="14" height="8" rx="1" fill="#e4e4e7"/>
+            <text x="29" y="15" font-size="7" fill="#16a34a" font-weight="bold">+</text>
+            <text x="69" y="15" font-size="7" fill="#a1a1aa" font-weight="bold">−</text>
+            <!-- rectangular body (sharp, phone-battery look) -->
+            <rect x="14" y="18" width="72" height="112" rx="6" fill="url(#packGood)" stroke="#22c55e" stroke-width="2.2"/>
+            <!-- green status strip -->
+            <rect class="batt-fill" x="20" y="28" width="8" height="92" rx="2" fill="url(#stripGreen)"/>
+            <!-- label plate -->
+            <rect x="34" y="36" width="44" height="48" rx="3" fill="#18181b" stroke="#3f3f46"/>
+            <rect x="38" y="42" width="36" height="6" rx="1" fill="#22c55e" opacity="0.85"/>
+            <rect x="38" y="54" width="28" height="4" rx="1" fill="#3f3f46"/>
+            <rect x="38" y="62" width="32" height="4" rx="1" fill="#3f3f46"/>
+            <rect x="38" y="70" width="20" height="4" rx="1" fill="#3f3f46"/>
+            <!-- bottom capacity bar -->
+            <rect x="34" y="100" width="44" height="18" rx="3" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+            <rect class="batt-fill" x="38" y="104" width="36" height="10" rx="2" fill="#4ade80" opacity="0.9"/>
+          </svg>
+        </div>
+      </div>
     </div>
  
   </div>
@@ -293,7 +360,7 @@
             <div class="form-group"><label>Método de pago</label>
               <select id="venta-pago" onchange="mostrarQrCobroSiAplica(this.value)"><option>Efectivo</option><option>QR (transferencia)</option><option>Transferencia bancaria</option></select>
             </div>
-            <div class="form-group"><label>Técnico responsable</label><select id="venta-tech"></select></div>
+            <div class="form-group"><label>¿Quién atiende?</label><select id="venta-tech" class="select-tech-nice"></select></div>
             <div class="form-group"><label>Sucursal</label>
               <select id="venta-sucursal"></select>
             </div>
@@ -437,21 +504,31 @@
               <input type="text" id="recibo-num" placeholder="Ej: REC-0001">
             </div>
             <div class="form-group"><label>Tipo de recibo</label>
-              <select id="recibo-tipo">
-                <option>Recibo de servicio técnico</option>
-                <option>Recibo de venta de repuesto</option>
-                <option>Recibo de entrega de equipo</option>
+              <select id="recibo-tipo" onchange="onCambioTipoRecibo()">
+                <option value="servicio">Recibo de servicio técnico</option>
+                <option value="repuesto">Recibo de venta de repuesto</option>
+                <option value="entrega">Recibo de entrega de equipo</option>
               </select>
+            </div>
+            <div class="form-group" id="wrap-recibo-stock" style="display:none">
+              <label>Repuesto del inventario</label>
+              <select id="recibo-stock-item" onchange="onElegirRepuestoRecibo()">
+                <option value="">— Elegir repuesto (opcional) —</option>
+              </select>
+            </div>
+            <div class="form-group" id="wrap-recibo-qty" style="display:none">
+              <label>Cantidad vendida</label>
+              <input type="number" id="recibo-qty" min="1" value="1" placeholder="1">
             </div>
             <div class="form-group"><label>Cliente *</label><input type="text" id="recibo-cliente" placeholder="Nombre completo"></div>
             <div class="form-group"><label>Teléfono</label><input type="text" id="recibo-telefono" placeholder="7XXXXXXX"></div>
-            <div class="form-group"><label>Equipo *</label><input type="text" id="recibo-equipo" placeholder="Marca y modelo"></div>
-            <div class="form-group"><label>Servicio realizado *</label><input type="text" id="recibo-servicio" placeholder="Descripción del servicio"></div>
-            <div class="form-group"><label>Monto total (Bs) *</label><input type="number" id="recibo-monto" placeholder="0.00"></div>
+            <div class="form-group"><label id="lbl-recibo-equipo">Equipo *</label><input type="text" id="recibo-equipo" placeholder="Marca y modelo"></div>
+            <div class="form-group"><label id="lbl-recibo-servicio">Servicio realizado *</label><input type="text" id="recibo-servicio" placeholder="Descripción del servicio"></div>
+            <div class="form-group"><label id="lbl-recibo-monto">Monto total (Bs) *</label><input type="number" id="recibo-monto" placeholder="0.00"></div>
             <div class="form-group"><label>Método de pago</label>
               <select id="recibo-pago" onchange="mostrarQrCobroSiAplica(this.value)"><option>Efectivo</option><option>QR (transferencia)</option><option>Transferencia bancaria</option></select>
             </div>
-            <div class="form-group"><label>Técnico responsable</label><select id="recibo-tech"></select></div>
+            <div class="form-group"><label>¿Quién atiende?</label><select id="recibo-tech" class="select-tech-nice"></select></div>
             <div class="form-group"><label>Sucursal</label>
               <select id="recibo-sucursal"></select>
             </div>
@@ -529,9 +606,12 @@
       <!-- CLIENTES -->
       <div class="panel" id="panel-clientes">
         <div class="card">
-          <div class="card-header">
+          <div class="card-header" style="flex-wrap:wrap;gap:8px">
             <h3 class="card-title">Registro de clientes</h3>
-            <input class="input-search" placeholder="Buscar por nombre o teléfono..." oninput="filterClientes(this.value)">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto">
+              <input class="input-search" placeholder="Buscar por nombre o teléfono..." oninput="filterClientes(this.value)">
+              <button type="button" class="btn-secondary" onclick="unificarDuplicadosClientes()" title="Junta fichas con el mismo teléfono">Unificar duplicados</button>
+            </div>
           </div>
           <table class="table">
             <thead><tr><th>ID</th><th>Nombre</th><th>Teléfono</th><th>Visitas</th><th>Última visita</th><th>Sucursal</th><th>Estado</th><th>Acciones</th></tr></thead>
@@ -677,6 +757,7 @@
       <div class="form-group"><label>Cliente *</label><input type="text" id="modal-client" placeholder="Nombre completo"></div>
       <div class="form-group"><label>Teléfono <span style="color:var(--gray-400);font-weight:400">(opcional)</span></label><input type="text" id="modal-phone" placeholder="Ej: 71234567"></div>
       <div class="form-group"><label>Equipo (marca y modelo) *</label><input type="text" id="modal-device" placeholder="Ej: Samsung Galaxy A32"></div>
+      <div class="form-group"><label>IMEI <span style="color:var(--gray-400);font-weight:400">(opcional)</span></label><input type="text" id="modal-imei" placeholder="15 dígitos" maxlength="20" inputmode="numeric"></div>
       <div class="form-group"><label>Monto estimado (Bs)</label><input type="number" id="modal-monto" placeholder="0.00"></div>
       <div class="form-group" style="grid-column:span 2"><label>Servicio solicitado *</label>
         <select id="modal-service">
@@ -692,7 +773,7 @@
       <div class="form-group"><label>Sucursal</label>
         <select id="modal-branch"></select>
       </div>
-      <div class="form-group"><label>Técnico asignado</label><select id="modal-tech"></select></div>
+      <div class="form-group"><label>¿Quién atiende? <span style="color:var(--gray-400);font-weight:400">(técnico responsable)</span></label><select id="modal-tech" class="select-tech-nice"></select></div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -710,6 +791,7 @@
       <div class="form-group"><label>Cliente</label><input type="text" id="edit-order-client"></div>
       <div class="form-group"><label>Teléfono <span style="color:var(--gray-400);font-weight:400">(opcional)</span></label><input type="text" id="edit-order-phone" placeholder="Ej: 71234567"></div>
       <div class="form-group"><label>Equipo</label><input type="text" id="edit-order-device"></div>
+      <div class="form-group"><label>IMEI <span style="color:var(--gray-400);font-weight:400">(opcional)</span></label><input type="text" id="edit-order-imei" placeholder="15 dígitos" maxlength="20" inputmode="numeric"></div>
       <div class="form-group"><label>Servicio</label><input type="text" id="edit-order-service"></div>
       <div class="form-group"><label>Monto final (Bs) ← precio del técnico/admin</label><input type="number" id="edit-order-monto" placeholder="0.00"></div>
       <div class="form-group"><label>Estado</label>
@@ -718,7 +800,7 @@
           <option value="En proceso">En proceso</option><option value="Listo">Listo</option>
         </select>
       </div>
-      <div class="form-group"><label>Técnico</label><select id="edit-order-tech"></select></div>
+      <div class="form-group"><label>¿Quién atiende?</label><select id="edit-order-tech" class="select-tech-nice"></select></div>
       <div class="form-group"><label>Sucursal</label><select id="edit-order-sucursal"></select></div>
       <div class="form-group" style="grid-column:span 2"><label>Observaciones / Garantía</label>
         <textarea id="edit-order-obs"></textarea>
@@ -803,7 +885,7 @@
     <div class="modal-header"><h3>Ajuste rápido de stock</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
     <input type="hidden" id="adj-id">
     <div style="padding:16px 20px">
-      <div style="font-size:14px;font-weight:600;color:var(--gray-800);margin-bottom:4px" id="adj-name"></div>
+      <div style="font-size:14px;font-weight:600;color:var(--gray-100,#f4f4f5);margin-bottom:4px" id="adj-name"></div>
       <div style="font-size:12px;color:var(--gray-400);margin-bottom:16px">Modifica el stock de este repuesto individualmente</div>
       <div class="form-grid" style="grid-template-columns:1fr 1fr">
         <div class="form-group"><label>Stock mínimo</label><input type="number" id="adj-min"></div>
@@ -1229,14 +1311,7 @@
 
 
 <div id="toast-stack"></div>
-<div id="stock-toast" class="hidden">
-  <div class="st-head">
-    <span>⚠️ Alerta de stock</span>
-    <button type="button" class="st-x" onclick="cerrarToastStock()" title="Cerrar">×</button>
-  </div>
-  <div id="stock-toast-msg"></div>
-  <button type="button" class="btn-sm btn-sm-primary" style="margin-top:10px" onclick="nav('stock', document.getElementById('nav-stock')||document.querySelector('[onclick*=stock]'));cerrarToastStock()">Ver stock</button>
-</div>
+
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="js/api.js"></script>

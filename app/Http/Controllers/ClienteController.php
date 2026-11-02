@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cliente;
+use App\Support\ClientePhone;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -40,15 +41,17 @@ class ClienteController extends Controller
             'sucursal_id' => ['nullable', 'exists:sucursales,id'],
         ]);
 
-        $phoneNorm = preg_replace('/\D+/', '', $data['phone']);
-
-        $existente = Cliente::with('sucursal')->get()
-            ->first(fn (Cliente $c) => preg_replace('/\D+/', '', (string) $c->phone) === $phoneNorm);
-
+        $existente = ClientePhone::findByPhone($data['phone']);
         if ($existente) {
+            $existente->load('sucursal');
+            // Si viene otra sucursal, no crea duplicado: actualiza sucursal opcionalmente
+            if (! empty($data['sucursal_id']) && ! $existente->sucursal_id) {
+                $existente->update(['sucursal_id' => $data['sucursal_id']]);
+            }
+
             return response()->json([
-                'message' => 'Este cliente ya está registrado: '.$existente->name.' ('.$existente->code.'). No se creó un duplicado.',
-                'cliente' => $this->format($existente),
+                'message' => 'Este cliente ya está registrado: '.$existente->name.' ('.$existente->code.'). No se creó un duplicado (mismo teléfono).',
+                'cliente' => $this->format($existente->fresh('sucursal')),
             ], 422);
         }
 
@@ -75,9 +78,7 @@ class ClienteController extends Controller
         ]);
 
         if (! empty($data['phone'])) {
-            $phoneNorm = preg_replace('/\D+/', '', $data['phone']);
-            $otro = Cliente::where('id', '!=', $cliente->id)->get()
-                ->first(fn (Cliente $c) => preg_replace('/\D+/', '', (string) $c->phone) === $phoneNorm);
+            $otro = ClientePhone::findByPhone($data['phone'], $cliente->id);
             if ($otro) {
                 return response()->json([
                     'message' => 'Ese teléfono ya pertenece a '.$otro->name.' ('.$otro->code.').',
@@ -169,6 +170,139 @@ class ClienteController extends Controller
 
         return response()->json($this->format($cliente));
     }
+
+    
+    /**
+     * POST /api/clientes/unificar-duplicados
+     * Junta fichas con el mismo teléfono (con o sin código de país).
+     * Conserva la que tiene cuenta app / más visitas / id menor.
+     */
+    public function unificarDuplicados(Request $request)
+    {
+        $this->assertEsAdmin($request);
+
+        if (! class_exists(\App\Support\ClientePhone::class)) {
+            return response()->json([
+                'message' => 'Falta app/Support/ClientePhone.php — cópialo y corre: composer dump-autoload',
+            ], 500);
+        }
+
+        $clientes = Cliente::orderBy('id')->get();
+        $usados = [];
+        $fusionados = 0;
+        $detalle = [];
+        $errores = [];
+        $pares = [];
+
+        // Debug: mostrar qué teléfonos se consideran iguales
+        foreach ($clientes as $a) {
+            foreach ($clientes as $b) {
+                if ($a->id >= $b->id) {
+                    continue;
+                }
+                if (\App\Support\ClientePhone::same($a->phone, $b->phone)) {
+                    $pares[] = $a->code.'('.$a->phone.') ≈ '.$b->code.'('.$b->phone.')';
+                }
+            }
+        }
+
+        foreach ($clientes as $c) {
+            if (in_array($c->id, $usados, true)) {
+                continue;
+            }
+
+            $grupo = $clientes->filter(function (Cliente $o) use ($c, $usados) {
+                if (in_array($o->id, $usados, true)) {
+                    return false;
+                }
+                if ($o->id === $c->id) {
+                    return true;
+                }
+
+                return \App\Support\ClientePhone::same($c->phone, $o->phone);
+            })->values();
+
+            if ($grupo->count() < 2) {
+                continue;
+            }
+
+            $principal = $grupo->sortBy([
+                fn (Cliente $x) => empty($x->username) ? 1 : 0,
+                fn (Cliente $x) => -((int) $x->visits + (int) $x->coins),
+                fn (Cliente $x) => $x->id,
+            ])->first();
+
+            foreach ($grupo as $dup) {
+                if ($dup->id === $principal->id) {
+                    continue;
+                }
+
+                try {
+                    // Sumar métricas
+                    $principal->visits = (int) $principal->visits + (int) $dup->visits;
+                    $principal->coins = (int) $principal->coins + (int) $dup->coins;
+                    $principal->total_gastado = (float) $principal->total_gastado + (float) ($dup->total_gastado ?? 0);
+                    if (! empty($dup->es_vip)) {
+                        $principal->es_vip = true;
+                    }
+                    if (empty($principal->username) && ! empty($dup->username)) {
+                        $principal->username = $dup->username;
+                        $principal->password = $dup->getAttributes()['password'] ?? $dup->password;
+                    }
+                    $pN = \App\Support\ClientePhone::norm($principal->phone);
+                    $dN = \App\Support\ClientePhone::norm($dup->phone);
+                    if (strlen($dN) >= 7 && strlen($dN) < strlen($pN)) {
+                        $principal->phone = $dN;
+                    }
+                    $principal->save();
+
+                    // Reasignar órdenes
+                    try {
+                        \DB::table('service_orders')->where('cliente_id', $dup->id)->update(['cliente_id' => $principal->id]);
+                    } catch (\Throwable $e) {
+                        try {
+                            \App\Models\ServiceOrder::where('cliente_id', $dup->id)->update(['cliente_id' => $principal->id]);
+                        } catch (\Throwable $e2) {
+                            $errores[] = 'órdenes '.$dup->code.': '.$e2->getMessage();
+                        }
+                    }
+
+                    try {
+                        $dup->tokens()->delete();
+                    } catch (\Throwable $e) {
+                    }
+
+                    // Borrar duplicado (forzado)
+                    \DB::table('clientes')->where('id', $dup->id)->delete();
+                    // por si usaba soft delete en el modelo
+                    try {
+                        $dup->delete();
+                    } catch (\Throwable $e) {
+                    }
+
+                    $usados[] = $dup->id;
+                    $detalle[] = ($dup->code ?? $dup->id).' → '.($principal->code ?? $principal->id);
+                    $fusionados++;
+                } catch (\Throwable $e) {
+                    $errores[] = ($dup->code ?? (string) $dup->id).': '.$e->getMessage();
+                }
+            }
+            $usados[] = $principal->id;
+        }
+
+        return response()->json([
+            'message' => $fusionados
+                ? "Se unificaron {$fusionados} ficha(s) duplicada(s)."
+                : (count($pares)
+                    ? 'Había pares iguales pero no se pudo borrar. Errores: '.implode(' | ', $errores)
+                    : 'No se detectaron teléfonos equivalentes. Revisa ClientePhone.'),
+            'detalle' => $detalle,
+            'pares_detectados' => $pares,
+            'errores' => $errores,
+        ]);
+    }
+
+
 
     public function destroy(Request $request, Cliente $cliente)
     {

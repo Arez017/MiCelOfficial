@@ -187,6 +187,9 @@ async function doLogout() {
   try { await AuthAPI.logout(); } catch (_) {}
   clearSession();
   currentUser = null;
+  window.currentSucursalFilter = '';
+  if (typeof cerrarToastStock === 'function') cerrarToastStock();
+  document.getElementById('stock-toast')?.classList.add('hidden');
   document.getElementById('app').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
   const u = document.getElementById('login-user');
@@ -202,6 +205,8 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- init ----------
 async function initApp() {
+  try { initPhoneCountryFields(); } catch (e) { console.warn(e); }
+
   await loadSucursales();
   await loadUsuarios();
 
@@ -228,10 +233,10 @@ async function initApp() {
   poblarSelectSucursal(document.getElementById('orders-filter-branch'), { conTodas: true });
   poblarSelectSucursal(document.getElementById('historial-filter-branch'), { conTodas: true });
   poblarSelectSucursal(document.getElementById('modal-branch'));
-  poblarSelectSucursal(document.getElementById('nu-branch'), { conAmbas: true });
+  poblarSelectSucursal(document.getElementById('nu-branch'));
   poblarSelectSucursal(document.getElementById('recibo-sucursal'));
   poblarSelectSucursal(document.getElementById('new-cli-branch'));
-  poblarSelectSucursal(document.getElementById('new-user-branch'), { conAmbas: true });
+  poblarSelectSucursal(document.getElementById('new-user-branch'));
   poblarSelectSucursal(document.getElementById('cel-inv-branch'));
   poblarSelectSucursal(document.getElementById('venta-sucursal'));
   if (typeof renderUsers === 'function') renderUsers();
@@ -254,17 +259,24 @@ async function loadSucursales() {
 /**
  * Llena un <select> con las sucursales reales.
  * opts.conTodas: agrega "Todas las sucursales" (value="") al inicio — para filtros.
- * opts.conAmbas: agrega "Ambas" (value="") al final — para el form de usuario
- *                (Admin/SuperAdmin sin sucursal fija).
  */
 function poblarSelectSucursal(selectEl, opts = {}) {
   if (!selectEl) return;
-  const sucursales = window._sucursales || [];
+  const sucursales = (window._sucursales || []).filter((s) => {
+    const nom = String(s.nombre || s.name || '').trim().toLowerCase();
+    // No mostrar "Ambas" ni vacías (a veces quedó como sucursal en la BD)
+    if (!nom || nom === 'ambas' || nom === 'todas' || nom === 'todas las sucursales') return false;
+    if (s.activa === false || s.activa === 0) return false;
+    return true;
+  });
   const partes = [];
 
   if (opts.conTodas) partes.push(`<option value="">Todas las sucursales</option>`);
-  sucursales.forEach((s) => partes.push(`<option value="${s.id}">${s.nombre}</option>`));
-  if (opts.conAmbas) partes.push(`<option value="">Ambas</option>`);
+  sucursales.forEach((s) => {
+    const id = s.id;
+    const nombre = s.nombre || s.name || ('Sucursal ' + id);
+    partes.push(`<option value="${id}">${nombre}</option>`);
+  });
 
   selectEl.innerHTML = partes.join('');
 }
@@ -287,7 +299,7 @@ async function loadUsuarios() {
     }));
   } catch (e) {
     console.error(e);
-    alert('No se pudieron cargar usuarios: ' + e.message);
+    showToast('No se pudieron cargar usuarios: ' + e.message, 'error');
   }
 }
 
@@ -297,6 +309,7 @@ function normalizeOrder(o) {
     code: o.code,
     client: o.client,
     phone: o.phone || '',
+    imei: o.imei || '',
     device: o.device,
     service: o.service,
     techCode: o.tecnico?.code || '',
@@ -557,9 +570,9 @@ async function agregarInventarioCelular() {
   const compra = parseFloat(document.getElementById('cel-inv-compra').value);
   const sucursal_id = document.getElementById('cel-inv-branch').value || null;
 
-  if (!modelo) { alert('Complete la marca y modelo del equipo.'); return; }
-  if (!imei || imei.length < 5) { alert('Ingrese un IMEI válido (mínimo 5 dígitos).'); return; }
-  if (isNaN(compra) || compra <= 0) { alert('El precio de compra debe ser mayor a 0.'); return; }
+  if (!modelo) { showToast('Complete la marca y modelo del equipo.', 'error'); return; }
+  if (!imei || imei.length < 5) { showToast('Ingrese un IMEI válido (mínimo 5 dígitos).', 'error'); return; }
+  if (isNaN(compra) || compra <= 0) { showToast('El precio de compra debe ser mayor a 0.', 'error'); return; }
 
   try {
     await CelularesAPI.agregarInventario({ modelo, imei, estado, precio_compra: compra, sucursal_id });
@@ -567,7 +580,7 @@ async function agregarInventarioCelular() {
     ['cel-inv-modelo', 'cel-inv-imei', 'cel-inv-compra'].forEach((id) => (document.getElementById(id).value = ''));
     showToast('✓ Equipo agregado al inventario');
   } catch (e) {
-    alert('No se pudo agregar el equipo: ' + e.message); // incluye "IMEI ya existe"
+    showToast('No se pudo agregar el equipo: ' + e.message, 'error');
   }
 }
 
@@ -661,7 +674,7 @@ async function registrarVentaCelular(confirmarPerdida = false) {
   const pagoLabel = document.getElementById('cel-pago').value;
   const metodo_pago = PAGO_FORM_A_API[pagoLabel] || 'efectivo';
 
-  if (!invId) { alert('Seleccione un equipo del inventario para vender.'); return; }
+  if (!invId) { showToast('Seleccione un equipo del inventario para vender.', 'error'); return; }
   if (!cliente) { alert('El nombre del cliente es obligatorio.'); return; }
   if (!validarNombre(cliente, 'Cliente')) return;
   if (telefono && !validarTelefono(telefono, false)) return;
@@ -686,7 +699,7 @@ async function registrarVentaCelular(confirmarPerdida = false) {
     if (isNaN(inicial) || inicial < 0) { alert('El pago inicial no puede ser negativo.'); return; }
     if (inicial >= venta) { alert('El pago inicial no puede ser mayor o igual al precio de venta (si no, no es una venta a crédito).'); return; }
     if (isNaN(numero) || numero < 1) { alert('El número de cuotas debe ser al menos 1.'); return; }
-    if (numero > 15) { alert('El Plan Cuotas MiCel financia hasta un máximo de 15 cuotas.'); return; }
+    if (numero > 15) { showToast('El Plan Cuotas MiCel financia hasta un máximo de 15 cuotas.', 'error'); return; }
 
     const docs = {
       doc_ci: document.getElementById('doc-ci').checked,
@@ -695,7 +708,7 @@ async function registrarVentaCelular(confirmarPerdida = false) {
       doc_afp: document.getElementById('doc-afp').checked,
     };
     if (!docs.doc_ci || !docs.doc_boleta || !docs.doc_luz || !docs.doc_afp) {
-      alert('Para aprobar una venta a crédito debes marcar que el cliente presentó los 4 documentos requeridos:\n· Documento de identidad vigente\n· Última boleta de pago\n· Aviso de luz de la vivienda actual\n· Extracto de AFP');
+      showToast('Marca los 4 documentos requeridos para venta a crédito', 'error');
       return;
     }
 
@@ -734,7 +747,7 @@ async function registrarVentaCelular(confirmarPerdida = false) {
       }
       return;
     }
-    alert('No se pudo registrar la venta: ' + e.message);
+    showToast('No se pudo registrar la venta: ' + e.message, 'error');
   }
 
   } finally {
@@ -821,7 +834,7 @@ async function marcarCuotaPagada(ventaId, cuotaId) {
     await loadCelulares();
     mostrarContrato(ventaId); // refresca la vista con el nuevo estado
   } catch (e) {
-    alert('No se pudo actualizar la cuota: ' + e.message);
+    showToast('No se pudo actualizar la cuota: ' + e.message, 'error');
   }
 }
 
@@ -977,7 +990,7 @@ function _contratoHtml(v, conAcciones) {
 
 function mostrarContrato(ventaId) {
   const v = celularesData.find((x) => x.id === ventaId);
-  if (!v || !v.planPagos) { alert('Esta venta no tiene un plan de pagos asociado.'); return; }
+  if (!v || !v.planPagos) { showToast('Esta venta no tiene un plan de pagos asociado.', 'error'); return; }
   contratoActualId = ventaId;
   document.getElementById('contrato-cel-preview').innerHTML = _contratoHtml(v, true);
   document.getElementById('modal-contrato-cel').classList.remove('hidden');
@@ -1052,6 +1065,10 @@ function nav(id, el) {
   }
   if (id === 'mis-ordenes' && typeof renderMisOrdenes === 'function') renderMisOrdenes();
   if (id === 'reportes' && typeof renderReportesCompletos === 'function') renderReportesCompletos();
+  if (id === 'usuarios') {
+    if (typeof loadUsuarios === 'function') loadUsuarios().then(() => { if (typeof renderUsersEnhanced === 'function') renderUsersEnhanced(); });
+    else if (typeof renderUsersEnhanced === 'function') renderUsersEnhanced();
+  }
   if (id === 'dashboard' && typeof updateDashboard === 'function') updateDashboard();
 
 }
@@ -1070,7 +1087,8 @@ function topAction(id) {
     document.getElementById('venta-detalle')?.focus();
   }
   else if (id === 'clientes') openModal('cliente');
-  else if (id === 'recibos') openModal('recibo-manual');
+  else if (id === 'recibos' && typeof onCambioTipoRecibo === 'function') { try { onCambioTipoRecibo(); } catch(_){} }
+  if (id === 'recibos') openModal('recibo-manual');
   else if (id === 'reportes') {
     if (typeof renderReportesCompletos === 'function') renderReportesCompletos();
     showToast('✓ Reporte actualizado con datos reales');
@@ -1136,10 +1154,154 @@ function soloDecimalPositivo(valor, permitirCero = true) {
   return permitirCero ? n >= 0 : n > 0;
 }
 
-function limpiarTelefono(valor) {
-  // Solo dígitos (ignora X del placeholder, espacios, guiones, etc.)
-  return (valor || '').replace(/\D+/g, '');
+
+/** Códigos sudamericanos (+ algunos vecinos) y largo del número NACIONAL (sin código país). */
+const PHONE_COUNTRIES = [
+  { iso: 'BO', name: 'Bolivia', dial: '591', len: [8], example: '71234567' },
+  { iso: 'PE', name: 'Perú', dial: '51', len: [9], example: '912345678' },
+  { iso: 'AR', name: 'Argentina', dial: '54', len: [10, 11], example: '91123456789' },
+  { iso: 'CL', name: 'Chile', dial: '56', len: [9], example: '912345678' },
+  { iso: 'CO', name: 'Colombia', dial: '57', len: [10], example: '3001234567' },
+  { iso: 'EC', name: 'Ecuador', dial: '593', len: [9], example: '991234567' },
+  { iso: 'PY', name: 'Paraguay', dial: '595', len: [9], example: '981234567' },
+  { iso: 'UY', name: 'Uruguay', dial: '598', len: [8], example: '91234567' },
+  { iso: 'BR', name: 'Brasil', dial: '55', len: [10, 11], example: '11912345678' },
+  { iso: 'VE', name: 'Venezuela', dial: '58', len: [10], example: '4121234567' },
+  { iso: 'GY', name: 'Guyana', dial: '592', len: [7], example: '6123456' },
+  { iso: 'SR', name: 'Surinam', dial: '597', len: [7], example: '7123456' },
+];
+
+function phoneCountryByDial(dial) {
+  return PHONE_COUNTRIES.find((c) => c.dial === String(dial)) || PHONE_COUNTRIES[0];
 }
+
+function phoneCountryByIso(iso) {
+  return PHONE_COUNTRIES.find((c) => c.iso === iso) || PHONE_COUNTRIES[0];
+}
+
+/** Solo dígitos del número (puede incluir código país si el usuario lo pegó completo). */
+function limpiarTelefono(valor) {
+  return String(valor || '').replace(/\D+/g, '');
+}
+
+/**
+ * Devuelve el número a guardar.
+ * Si hay select de país junto al input (data-phone-input), combina dial + nacional.
+ */
+function telefonoParaGuardar(inputId) {
+  const input = typeof inputId === 'string' ? document.getElementById(inputId) : inputId;
+  if (!input) return '';
+  const wrap = input.closest('.phone-field');
+  const sel = wrap ? wrap.querySelector('.phone-country-select') : null;
+  let digits = limpiarTelefono(input.value);
+  if (!digits) return '';
+  if (sel) {
+    const country = phoneCountryByDial(sel.value);
+    // Si ya viene con código país, no duplicar
+    if (digits.startsWith(country.dial) && digits.length > country.dial.length + 3) {
+      return digits;
+    }
+    // Solo nacionales
+    return country.dial + digits;
+  }
+  return digits;
+}
+
+function validarTelefono(valor, obligatorio, opts) {
+  opts = opts || {};
+  const input = opts.inputId ? document.getElementById(opts.inputId) : null;
+  const wrap = input ? input.closest('.phone-field') : null;
+  const sel = wrap ? wrap.querySelector('.phone-country-select') : null;
+
+  let digits = limpiarTelefono(valor || (input ? input.value : ''));
+  if (!digits) {
+    if (obligatorio) {
+      showToast('Teléfono es obligatorio', 'error');
+      return false;
+    }
+    return true;
+  }
+
+  const country = sel
+    ? phoneCountryByDial(sel.value)
+    : phoneCountryByIso(opts.iso || 'BO');
+
+  // Si pegaron número con código país, quitar dial para validar largo nacional
+  let nacional = digits;
+  if (nacional.startsWith(country.dial)) {
+    nacional = nacional.slice(country.dial.length);
+  }
+  // Quitar 0 inicial de algunos países
+  if (nacional.startsWith('0')) nacional = nacional.slice(1);
+
+  const lens = country.len;
+  const minL = Math.min(...lens);
+  const maxL = Math.max(...lens);
+
+  if (nacional.length < minL || nacional.length > maxL || !lens.includes(nacional.length) && !(nacional.length >= minL && nacional.length <= maxL)) {
+    const lenTxt = lens.length === 1 ? lens[0] + ' dígitos' : lens.join(' o ') + ' dígitos';
+    showToast(
+      'Teléfono ' + country.name + ' (+' + country.dial + '): debe tener ' + lenTxt + ' (ej: ' + country.example + ')',
+      'error'
+    );
+    return false;
+  }
+  return true;
+}
+
+/** Convierte inputs de teléfono sueltos en [país + número]. */
+function initPhoneCountryFields() {
+  const ids = [
+    'modal-phone',
+    'edit-order-phone',
+    'new-cli-phone',
+    'edit-cli-phone',
+    'recibo-telefono',
+    'edit-rec-telefono',
+    'cel-cliente-tel',
+    'perfil-telefono',
+  ];
+  ids.forEach((id) => {
+    const input = document.getElementById(id);
+    if (!input || input.dataset.phoneEnhanced === '1') return;
+    input.dataset.phoneEnhanced = '1';
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('autocomplete', 'tel-national');
+
+    const wrap = document.createElement('div');
+    wrap.className = 'phone-field';
+    wrap.style.cssText = 'display:flex;gap:8px;align-items:stretch;width:100%';
+    input.parentNode.insertBefore(wrap, input);
+
+    const sel = document.createElement('select');
+    sel.className = 'phone-country-select';
+    sel.style.cssText = 'width:128px;flex-shrink:0';
+    sel.innerHTML = PHONE_COUNTRIES.map(
+      (c) =>
+        `<option value="${c.dial}" data-iso="${c.iso}" ${c.iso === 'BO' ? 'selected' : ''}>+${c.dial} ${c.iso}</option>`
+    ).join('');
+
+    wrap.appendChild(sel);
+    wrap.appendChild(input);
+    input.style.flex = '1';
+    input.placeholder = phoneCountryByIso('BO').example;
+
+    const syncMax = () => {
+      const c = phoneCountryByDial(sel.value);
+      const maxL = Math.max(...c.len);
+      input.maxLength = maxL;
+      input.placeholder = c.example;
+    };
+    sel.addEventListener('change', syncMax);
+    input.addEventListener('input', () => {
+      // solo dígitos en el campo nacional
+      const d = limpiarTelefono(input.value);
+      if (input.value !== d) input.value = d;
+    });
+    syncMax();
+  });
+}
+
 
 function validarNombre(valor, etiqueta) {
   if (!(valor || '').trim()) {
@@ -1153,22 +1315,6 @@ function validarNombre(valor, etiqueta) {
   return true;
 }
 
-function validarTelefono(valor, obligatorio) {
-  const digits = limpiarTelefono(valor || '');
-  // Vacío o solo basura tipo placeholder 7XXXXXXX sin dígitos suficientes
-  if (!digits) {
-    if (obligatorio) {
-      showToast('Teléfono es obligatorio', 'error');
-      return false;
-    }
-    return true; // opcional en órdenes / muchos formularios
-  }
-  if (digits.length < 7 || digits.length > 15) {
-    showToast('Teléfono inválido: solo números (7 a 15 dígitos)', 'error');
-    return false;
-  }
-  return true;
-}
 
 function validarCantidad(valor, etiqueta, permitirCero) {
   if (valor === '' || valor === null || valor === undefined) {
@@ -1283,17 +1429,40 @@ function stockColor(qty, min) {
 }
 
 function populateTechSelects() {
-  const opts = tecnicos
-    .filter((t) => t.active && (t.rolRaw === 'tecnico' || t.rol === 'Técnico'))
-    .map((t) => `<option value="${t.id}">${t.code} — ${t.name}</option>`)
-    .join('');
-  ['modal-tech', 'recibo-tech', 'venta-tech', 'edit-order-tech'].forEach((id) => {
+  const activos = (tecnicos || []).filter(
+    (t) => t.active !== false && (t.rolRaw === 'tecnico' || t.rol === 'Técnico' || t.rolRaw === 'administrador')
+  );
+  // Texto legible: "Felipe Quispe  ·  KevSolutions"  (código chico al final)
+  const opts =
+    '<option value="">Selecciona quién atiende esta orden…</option>' +
+    activos
+      .map((t) => {
+        const nombre = t.name || 'Técnico sin nombre';
+        const suc = t.branch ? ' · ' + t.branch : '';
+        const code = t.code ? '  [' + t.code + ']' : '';
+        return '<option value="' + t.id + '">' + nombre + suc + code + '</option>';
+      })
+      .join('');
+  ['modal-tech', 'recibo-tech', 'venta-tech', 'edit-order-tech', 'ha-tech'].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.innerHTML = opts || '<option value="">Sin técnicos</option>';
+    if (!el) return;
+    const prev = el.value;
+    el.innerHTML = opts || '<option value="">No hay técnicos activos</option>';
+    el.classList.add('select-tech-nice');
+    if (prev) el.value = prev;
   });
 }
 
+
 // ---------- render ----------
+function emptyRow(cols, msg, actionHtml) {
+  return '<tr class="empty-row"><td colspan="' + cols + '" style="text-align:center;padding:28px 16px;color:var(--gray-400)">' +
+    '<div style="font-size:28px;margin-bottom:8px;opacity:.5">📭</div>' +
+    '<div style="font-size:13px;margin-bottom:8px">' + msg + '</div>' +
+    (actionHtml || '') +
+    '</td></tr>';
+}
+
 function renderDashOrders() {
   const el = document.getElementById('dash-orders');
   if (!el) return;
@@ -1319,7 +1488,12 @@ function renderDashOrders() {
 function renderOrders(data) {
   const el = document.getElementById('orders-body');
   if (!el) return;
-  el.innerHTML = data
+  
+  if (!data || !data.length) {
+    el.innerHTML = emptyRow(9, 'No hay órdenes todavía', '<button class="btn-sm btn-sm-primary" onclick="openModal(\'orden\')">+ Nueva orden</button>');
+    return;
+  }
+el.innerHTML = data
     .map(
       (o) => `<tr>
       <td><code class="code-tag">${o.code}</code></td>
@@ -1339,12 +1513,83 @@ function renderOrders(data) {
     .join('');
 }
 
+/** Filtro global de sucursal (topbar + paneles). */
+window.currentSucursalFilter = window.currentSucursalFilter || '';
+
 function filterOrders(q) {
-  loadOrders(q ? { q } : {});
+  const params = {};
+  if (q) params.q = q;
+  if (window.currentSucursalFilter) params.sucursal_id = window.currentSucursalFilter;
+  loadOrders(params);
 }
+
 function filterSucursal(v) {
-  loadOrders(v ? { sucursal_id: v } : {});
+  window.currentSucursalFilter = v ? String(v) : '';
+  // Sincronizar todos los selects de filtro de sucursal
+  document.querySelectorAll('#orders-filter-branch, #historial-filter-branch, #clientes-filter-branch, #reportes-filter-branch').forEach((el) => {
+    if (el && el.value !== window.currentSucursalFilter) el.value = window.currentSucursalFilter;
+  });
+
+  const params = {};
+  if (window.currentSucursalFilter) params.sucursal_id = window.currentSucursalFilter;
+  // Mantener búsqueda de órdenes si hay
+  const qEl = document.getElementById('orders-search') || document.querySelector('#panel-ordenes .input-search');
+  if (qEl && qEl.value.trim()) params.q = qEl.value.trim();
+
+  loadOrders(params);
+
+  // Filtrar en cliente otros módulos (por si el API no filtra)
+  if (typeof renderOrders === 'function') {
+    // loadOrders ya re-renderiza
+  }
+  if (typeof applySucursalFilterLocal === 'function') applySucursalFilterLocal();
+  if (typeof renderHistorial === 'function') renderHistorial();
+  if (typeof renderClientes === 'function') renderClientes();
+  if (typeof renderVentas === 'function') renderVentas();
+  if (typeof updateDashboard === 'function') updateDashboard();
+  if (typeof renderReportesCompletos === 'function') renderReportesCompletos();
+  showToast(
+    window.currentSucursalFilter
+      ? 'Filtro de sucursal aplicado'
+      : 'Mostrando todas las sucursales',
+    'info'
+  );
 }
+
+function matchSucursalRow(row) {
+  const f = window.currentSucursalFilter;
+  if (!f) return true;
+  const sid = row.sucursal_id ?? row.sucursalId ?? null;
+  if (sid !== null && sid !== undefined && String(sid) === String(f)) return true;
+  // por nombre
+  const suc = (window._sucursales || []).find((s) => String(s.id) === String(f));
+  if (suc) {
+    const nombre = (row.branch || row.sucursal || row.sucursal_nombre || '').toString().toLowerCase();
+    if (nombre && nombre === String(suc.nombre).toLowerCase()) return true;
+  }
+  return sid !== null && String(sid) === String(f);
+}
+
+function applySucursalFilterLocal() {
+  // Re-render órdenes desde cache si API no filtró
+  if (!window.currentSucursalFilter) return;
+  if (Array.isArray(ordersData) && ordersData.length) {
+    const filtered = ordersData.filter(matchSucursalRow);
+    // Solo re-aplicar si parece que vino sin filtrar (todas las sucursales presentes)
+    const ids = new Set(ordersData.map((o) => String(o.sucursal_id)));
+    if (ids.size > 1 && typeof renderOrders === 'function') {
+      // No sobrescribir ordersData; solo vista
+      renderOrders(filtered);
+      if (typeof renderDashOrders === 'function') renderDashOrders(filtered);
+    }
+  }
+}
+
+function ordersVisible() {
+  if (!window.currentSucursalFilter) return ordersData || [];
+  return (ordersData || []).filter(matchSucursalRow);
+}
+
 
 
 
@@ -1552,6 +1797,9 @@ async function cambiarEstado(id, nuevoStatusRaw) {
     }
 
     await loadOrders();
+    if (pasaAListo && typeof loadClientes === 'function') {
+      try { await loadClientes(); } catch (_) {}
+    }
     showToast('✓ Orden ' + o.code + ' → ' + (ESTADOS_ORDEN.find(e => e.value === nuevoStatusRaw)?.label || nuevoStatusRaw));
   } catch (e) {
     showToast('No se pudo cambiar el estado: ' + e.message, 'error');
@@ -1572,6 +1820,7 @@ function editarOrden(id) {
   if (lab) lab.textContent = o.code;
   set('edit-order-client', o.client);
   set('edit-order-phone', o.phone);
+  set('edit-order-imei', o.imei || '');
   set('edit-order-device', o.device);
   set('edit-order-service', o.service);
   set('edit-order-monto', o.monto);
@@ -1621,14 +1870,15 @@ async function guardarEdicionOrden() {
   const clientEdit = document.getElementById('edit-order-client').value.trim();
   if (!validarNombre(clientEdit, 'Cliente')) return;
   const phoneEdit = document.getElementById('edit-order-phone').value.trim();
-  if (!validarTelefono(phoneEdit, false)) return;
+  if (!validarTelefono(phoneEdit, false, { inputId: 'edit-order-phone' })) return;
   const montoEdit = document.getElementById('edit-order-monto').value;
   if (montoEdit !== '' && !validarMonto(montoEdit, 'Monto', true)) return;
   const statusVal = document.getElementById('edit-order-status').value;
   try {
     await OrdersAPI.update(id, {
       client: clientEdit,
-      phone: limpiarTelefono(phoneEdit),
+      phone: telefonoParaGuardar('edit-order-phone') || limpiarTelefono(phoneEdit) || null,
+      imei: (document.getElementById('edit-order-imei')?.value || '').trim() || null,
       device: document.getElementById('edit-order-device').value.trim(),
       service: document.getElementById('edit-order-service').value.trim(),
       monto: parseFloat(document.getElementById('edit-order-monto').value) || 0,
@@ -1653,7 +1903,7 @@ async function guardarEdicionOrden() {
     await loadOrders();
     showToast('✓ Orden actualizada');
   } catch (e) {
-    alert('No se pudo guardar: ' + e.message);
+    showToast('No se pudo guardar: ' + e.message, 'error');
   }
 
   } finally {
@@ -1676,6 +1926,7 @@ async function guardarOrden() {
 
   const client = document.getElementById('modal-client').value.trim();
   const phone = document.getElementById('modal-phone').value.trim();
+  const imei = (document.getElementById('modal-imei')?.value || '').trim();
   const device = document.getElementById('modal-device').value.trim();
   const service = document.getElementById('modal-service').value;
   const montoRaw = document.getElementById('modal-monto').value;
@@ -1685,7 +1936,7 @@ async function guardarOrden() {
   const tecnico_id = document.getElementById('modal-tech').value || null;
 
   if (!validarNombre(client, 'Cliente')) return;
-  if (!validarTelefono(phone, false)) return;
+  if (!validarTelefono(phone, false, { inputId: 'modal-phone' })) return;
   if (!device) { showToast('Equipo es obligatorio', 'error'); return; }
   if (!service) { showToast('Servicio es obligatorio', 'error'); return; }
   if (montoRaw !== '' && !validarMonto(montoRaw, 'Monto estimado', true)) return;
@@ -1701,8 +1952,9 @@ async function guardarOrden() {
   try {
     await OrdersAPI.create({
       client,
-      phone: (limpiarTelefono(phone).length >= 7 ? limpiarTelefono(phone) : null),
+      phone: (() => { const p = telefonoParaGuardar('modal-phone') || limpiarTelefono(phone); return p.length >= 10 ? p : (p.length >= 7 ? p : null); })(),
       device,
+      imei: imei || null,
       service,
       sucursal_id,
       tecnico_id: currentUser.rol === 'Técnico' ? currentUser.id : tecnico_id,
@@ -1728,7 +1980,7 @@ async function verReciboOrden(id) {
   const o = ordersData.find((x) => x.id === id);
   if (!o) return;
   if (o.monto <= 0) {
-    alert('Asigna un monto a la orden antes de generar el recibo.');
+    showToast('Asigna un monto a la orden antes de generar el recibo.', 'error');
     return;
   }
 
@@ -1744,6 +1996,7 @@ async function verReciboOrden(id) {
       orden_id: o.id,
       cliente: o.client,
       telefono: o.phone,
+      imei: o.imei || '',
       equipo: o.device,
       servicio: o.service,
       monto: o.monto,
@@ -1753,9 +2006,23 @@ async function verReciboOrden(id) {
     await loadRecibos();
     await loadOrders();
     showToast(`✓ Recibo ${recibo.num_recibo} generado`);
+    // Descontar stock si venta de repuesto
+    if (tipoKey === 'repuesto') {
+      const stockId = document.getElementById('recibo-stock-item')?.value;
+      const qty = Math.max(1, parseInt(document.getElementById('recibo-qty')?.value || '1', 10) || 1);
+      if (stockId && typeof StockAPI !== 'undefined' && StockAPI.ajustar) {
+        try {
+          await StockAPI.ajustar(stockId, 'sub', qty);
+          if (typeof loadStock === 'function') await loadStock();
+          showToast('Stock actualizado (−' + qty + ')', 'info');
+        } catch (se) {
+          showToast('Recibo OK, pero no se descontó stock: ' + (se.message || se), 'warn');
+        }
+      }
+    }
     mostrarVistaPreviaRecibo(recibo.id);
   } catch (e) {
-    alert('No se pudo generar el recibo: ' + e.message);
+    showToast('No se pudo generar el recibo: ' + e.message, 'error');
   }
 }
 
@@ -1903,6 +2170,13 @@ function _micelPrintShell(title, bodyHtml) {
 }
 
 function _reciboDocHtml(r) {
+  const key = tipoReciboKey(r.tipo);
+  if (key === 'repuesto') return _reciboDocRepuesto(r);
+  if (key === 'entrega') return _reciboDocEntrega(r);
+  return _reciboDocServicio(r);
+}
+
+function _reciboDocServicio(r) {
   const logo = 'img/logo-icon.svg';
   const check = (label) =>
     `<label style="display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0;font-size:11px">
@@ -1954,26 +2228,22 @@ function _reciboDocHtml(r) {
         <div style="flex:1.1;min-width:200px;border:1px solid #ccc;border-radius:6px;padding:10px;text-align:center">
           <div style="font-size:10px;font-weight:700;margin-bottom:6px">ESTADO FÍSICO</div>
           <svg viewBox="0 0 220 150" width="200" height="130" xmlns="http://www.w3.org/2000/svg">
-            <!-- Frente -->
             <rect x="18" y="12" width="70" height="120" rx="12" fill="none" stroke="#111" stroke-width="2.2"/>
             <rect x="26" y="28" width="54" height="88" rx="3" fill="none" stroke="#444" stroke-width="1.2"/>
             <circle cx="53" cy="20" r="3" fill="none" stroke="#333" stroke-width="1.2"/>
             <rect x="44" y="122" width="18" height="4" rx="2" fill="#222"/>
             <text x="53" y="145" text-anchor="middle" font-size="8" fill="#666">Frente</text>
-            <!-- Lateral -->
             <rect x="105" y="20" width="22" height="110" rx="6" fill="none" stroke="#111" stroke-width="2"/>
             <line x1="108" y1="40" x2="124" y2="40" stroke="#666" stroke-width="1"/>
             <line x1="108" y1="55" x2="124" y2="55" stroke="#666" stroke-width="1"/>
             <line x1="108" y1="95" x2="124" y2="95" stroke="#666" stroke-width="1.5"/>
             <text x="116" y="145" text-anchor="middle" font-size="8" fill="#666">Lado</text>
-            <!-- Trasera -->
             <rect x="145" y="12" width="70" height="120" rx="12" fill="none" stroke="#111" stroke-width="2.2"/>
             <circle cx="168" cy="32" r="8" fill="none" stroke="#333" stroke-width="1.5"/>
             <circle cx="168" cy="32" r="3.5" fill="none" stroke="#555" stroke-width="1"/>
             <rect x="155" y="55" width="50" height="50" rx="4" fill="none" stroke="#ddd" stroke-width="1" stroke-dasharray="3 2"/>
             <text x="180" y="145" text-anchor="middle" font-size="8" fill="#666">Dorso</text>
           </svg>
-          <div style="font-size:9px;color:#666;margin-top:2px">Marcar golpes, rayones o zonas dañadas</div>
         </div>
         <div style="flex:1;min-width:160px">
           <div style="font-size:10px;font-weight:700;margin-bottom:4px">FUNCIONES</div>
@@ -1996,7 +2266,6 @@ function _reciboDocHtml(r) {
             <circle cx="45" cy="70" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
             <circle cx="70" cy="70" r="7" fill="none" stroke="#222" stroke-width="1.8"/>
           </svg>
-          <div style="font-size:8px;color:#666;margin-top:4px;line-height:1.2">Dibujar patrón<br>o anotar PIN</div>
           <div style="border-bottom:1px solid #999;margin-top:8px;height:16px;font-size:10px"></div>
         </div>
       </div>
@@ -2011,10 +2280,97 @@ function _reciboDocHtml(r) {
         <div style="flex:1;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:11px">Firma del cliente</div>
         <div style="flex:1;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:11px">Firma / sello MiCEL</div>
       </div>
-      <div style="font-size:9px;color:#888;text-align:center;margin-top:12px">Documento generado por MiCEL · Servicio técnico</div>
     </div>
   </div>`;
 }
+
+function _reciboDocRepuesto(r) {
+  const logo = 'img/logo-icon.svg';
+  return `
+  <div class="doc" style="max-width:520px;margin:0 auto;border:2px solid #222;background:#fff;color:#111;font-family:Arial,sans-serif">
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:3px solid #F5C518;background:#1a1a1a;color:#fff">
+      <img src="${logo}" alt="MiCEL" style="width:48px;height:48px">
+      <div style="flex:1">
+        <div style="font-size:20px;font-weight:900">mi<span style="color:#F5C518">CEL</span></div>
+        <div style="font-size:11px;opacity:.85">Comprobante de venta de repuesto</div>
+      </div>
+      <div style="text-align:right;font-size:12px">
+        <div style="font-weight:800">${r.numRecibo || ''}</div>
+        <div>${r.fecha || ''} ${r.hora || ''}</div>
+      </div>
+    </div>
+    <div style="padding:18px 16px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666">Cliente</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:600;text-align:right">${r.cliente || '—'}</td></tr>
+        <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666">Teléfono</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${r.telefono || '—'}</td></tr>
+        <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666">Producto</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:600;text-align:right">${r.equipo || '—'}</td></tr>
+        <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666">Detalle</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${r.servicio || 'Venta de repuesto'}</td></tr>
+        <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666">Atendido por</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${r.techName || '—'}</td></tr>
+        <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666">Pago</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${r.pago || '—'}</td></tr>
+      </table>
+      <div style="margin-top:16px;background:#fff5f7;border:2px solid #ff1440;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700;color:#666">TOTAL</span>
+        <span style="font-size:24px;font-weight:800;color:#ff1440">Bs ${fmtMonto(r.monto)}</span>
+      </div>
+      ${r.obs ? `<div style="margin-top:12px;font-size:12px;color:#555"><b>Obs:</b> ${r.obs}</div>` : ''}
+      ${typeof _qrCobroNegocioHtml === 'function' ? _qrCobroNegocioHtml({ extraLine: 'Pago · ' + (r.numRecibo || '') }) : ''}
+      <div style="display:flex;gap:20px;margin-top:28px;font-size:11px">
+        <div style="flex:1;text-align:center;border-top:1px solid #333;padding-top:6px">Cliente</div>
+        <div style="flex:1;text-align:center;border-top:1px solid #333;padding-top:6px">MiCEL</div>
+      </div>
+      <div style="font-size:9px;color:#999;text-align:center;margin-top:12px">Venta de repuesto · Sin garantía de instalación salvo indicación</div>
+    </div>
+  </div>`;
+}
+
+function _reciboDocEntrega(r) {
+  const logo = 'img/logo-icon.svg';
+  const check = (label) =>
+    `<label style="display:inline-flex;align-items:center;gap:5px;margin:4px 10px 4px 0;font-size:11px">
+      <span style="display:inline-block;width:13px;height:13px;border:1.5px solid #333;border-radius:2px"></span>${label}
+    </label>`;
+  return `
+  <div class="doc" style="max-width:560px;margin:0 auto;border:2px solid #222;background:#fff;color:#111;font-family:Arial,sans-serif">
+    <div style="padding:14px 16px;border-bottom:2px solid #222;display:flex;align-items:center;gap:12px;background:#f8fafc">
+      <img src="${logo}" alt="MiCEL" style="width:52px;height:52px">
+      <div style="flex:1">
+        <div style="font-size:20px;font-weight:900">mi<span style="color:#F5C518">CEL</span></div>
+        <div style="font-size:11px;color:#555">Constancia de entrega de equipo</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:800;border:2px solid #222;padding:4px 10px;display:inline-block;font-size:12px">ENTREGA</div>
+        <div style="font-size:12px;margin-top:4px">${r.numRecibo || ''}</div>
+        <div style="font-size:11px;color:#666">${r.fecha || ''} ${r.hora || ''}</div>
+      </div>
+    </div>
+    <div style="padding:16px">
+      <p style="font-size:12px;line-height:1.5;margin:0 0 12px">
+        El cliente <strong>${r.cliente || '____________'}</strong>
+        (Tel: ${r.telefono || '—'}) recibe de MiCEL el equipo descrito, conforme y en funcionamiento
+        según las pruebas realizadas.
+      </p>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px">
+        <tr><td style="padding:6px;border:1px solid #ccc"><b>Equipo:</b> ${r.equipo || '—'}</td></tr>
+        <tr><td style="padding:6px;border:1px solid #ccc"><b>IMEI:</b> ${r.imei || '________________'}</td></tr>
+        <tr><td style="padding:6px;border:1px solid #ccc"><b>Trabajo realizado:</b> ${r.servicio || '—'}</td></tr>
+        <tr><td style="padding:6px;border:1px solid #ccc"><b>Técnico:</b> ${r.techName || '—'} · <b>Sucursal:</b> ${r.sucursal || '—'}</td></tr>
+      </table>
+      <div style="font-size:10px;font-weight:700;margin-bottom:4px">VERIFICACIÓN AL ENTREGAR</div>
+      <div style="margin-bottom:12px">${check('Enciende')} ${check('Pantalla OK')} ${check('Carga OK')} ${check('Biometría OK')} ${check('Accesorios devueltos')}</div>
+      <div style="border:1px solid #ccc;min-height:40px;padding:8px;margin-bottom:12px;font-size:12px"><b style="font-size:10px;color:#555">OBSERVACIONES / GARANTÍA</b><br>${r.obs || 'Garantía según políticas del taller.'}</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div style="flex:1;border:1px solid #ccc;padding:10px;text-align:center"><div style="font-size:10px;color:#666">Monto cobrado</div><div style="font-size:16px;font-weight:800">Bs ${fmtMonto(r.monto)}</div></div>
+        <div style="flex:1;border:1px solid #ccc;padding:10px;text-align:center"><div style="font-size:10px;color:#666">Pago</div><div style="font-weight:700">${r.pago || '—'}</div></div>
+      </div>
+      <div style="display:flex;gap:24px;margin-top:28px;font-size:11px">
+        <div style="flex:1;text-align:center;border-top:1px solid #333;padding-top:6px">Recibí conforme (cliente)</div>
+        <div style="flex:1;text-align:center;border-top:1px solid #333;padding-top:6px">Entrega MiCEL</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+
 
 
 function mostrarVistaPreviaRecibo(id) {
@@ -2093,7 +2449,7 @@ async function guardarEdicionRecibo() {
     closeModal();
     showToast('✓ Recibo actualizado');
   } catch (e) {
-    alert('No se pudo actualizar el recibo: ' + e.message);
+    showToast('No se pudo actualizar el recibo: ' + e.message, 'error');
   }
 
   } finally {
@@ -2110,6 +2466,10 @@ function renderStock(data) {
   if (typeof revisarAlertasStock === 'function') revisarAlertasStock();
   const el = document.getElementById('stock-body');
   if (!el) return;
+  if (!data || !data.length) {
+    el.innerHTML = emptyRow(10, 'Inventario vacío', esAdminOSuper() ? '<button class=\"btn-sm btn-sm-primary\" onclick=\"openModal(\'repuesto\')\">+ Agregar repuesto</button>' : '');
+    return;
+  }
   el.innerHTML = (data || [])
     .map((s) => {
       const pct = Math.min(100, Math.round((s.qty / Math.max(s.min * 2, 1)) * 100));
@@ -2327,17 +2687,25 @@ async function guardarRepuesto() {
 function revisarAlertasStock() {
   const toast = document.getElementById('stock-toast');
   if (!toast) return;
-  const sin = stockData.filter((s) => s.qty === 0);
-  const crit = stockData.filter((s) => s.qty > 0 && s.qty < s.min);
+  const list = stockData || [];
+  const sin = list.filter((s) => Number(s.qty) === 0);
+  const crit = list.filter((s) => Number(s.qty) > 0 && Number(s.qty) <= Number(s.min));
   if (!sin.length && !crit.length) {
     toast.classList.add('hidden');
     return;
   }
   const msg = document.getElementById('stock-toast-msg');
   if (msg) {
-    msg.innerHTML =
-      (sin.length ? `🔴 ${sin.length} sin stock<br>` : '') +
-      (crit.length ? `🟡 ${crit.length} críticos` : '');
+    let html = '';
+    if (sin.length) {
+      const nombres = sin.slice(0, 4).map((s) => s.name).join(', ');
+      html += '<div class="st-line"><span class="st-dot red"></span><span><b>' + sin.length + ' sin stock:</b> ' + nombres + (sin.length > 4 ? '…' : '') + '</span></div>';
+    }
+    if (crit.length) {
+      const nombres = crit.slice(0, 4).map((s) => s.name).join(', ');
+      html += '<div class="st-line"><span class="st-dot amber"></span><span><b>' + crit.length + ' en nivel crítico:</b> ' + nombres + (crit.length > 4 ? '…' : '') + '</span></div>';
+    }
+    msg.innerHTML = html;
   }
   toast.classList.remove('hidden');
 }
@@ -2436,6 +2804,10 @@ function esSuperAdmin() {
 function renderClientes(data) {
   const el = document.getElementById('clientes-body');
   if (!el) return;
+  if (!data || !data.length) {
+    el.innerHTML = emptyRow(8, 'Sin clientes registrados', '');
+    return;
+  }
   const sa = esSuperAdmin();
   const puedeEditar = (typeof esAdminOSuper === 'function' && esAdminOSuper()) || sa;
   el.innerHTML = (data || [])
@@ -2514,7 +2886,7 @@ async function guardarEdicionCliente() {
   const sucursal_id = document.getElementById('edit-cli-branch')?.value || null;
   if (!id) return;
   if (!validarNombre(name, 'Nombre del cliente')) return;
-  if (!validarTelefono(phone, true)) return;
+  if (!validarTelefono(phone, true, { inputId: 'new-cli-phone' })) return;
 
   // anti-duplicado teléfono (otro cliente)
   const phoneLimpio = limpiarTelefono(phone);
@@ -2607,6 +2979,11 @@ async function toggleClienteActivo(dbId, active) {
 
 
 function renderRecibosHistorial() {
+  const elHist = document.getElementById('recibos-body') || document.querySelector('#panel-recibos tbody');
+  if (elHist && (!(recibosData || []).length)) {
+    elHist.innerHTML = emptyRow(9, 'Aún no hay recibos generados', '');
+  }
+
   const el = document.getElementById('recibos-body');
   if (!el) return;
   const n = (recibosData || []).length;
@@ -2626,7 +3003,7 @@ function renderRecibosHistorial() {
           : '—';
         return `<tr>
       <td><code class="code-tag">${r.numRecibo}</code></td>
-      <td>${ordenLabel}</td><td>${r.cliente}</td><td>${r.servicio}</td>
+      <td>${ordenLabel}</td><td>${r.cliente}</td><td><span style="font-size:10px;color:var(--gray-400)">${(r.tipo||"").replace("Recibo de ","")}</span><br>${r.servicio}</td>
       <td>Bs ${fmtMonto(r.monto)}</td><td>${r.pago}</td>
       <td>${r.techName}</td><td>${r.hora}</td>
       <td>
@@ -2657,6 +3034,81 @@ function precargarRecibo(ordenId) {
   if (selSuc) selSuc.value = o.sucursal_id ?? '';
 }
 
+
+// ===== Tipos de recibo individuales =====
+function tipoReciboKey(val) {
+  const v = String(val || '').toLowerCase();
+  if (v.includes('repuesto') || v === 'repuesto') return 'repuesto';
+  if (v.includes('entrega') || v === 'entrega') return 'entrega';
+  return 'servicio';
+}
+
+function onCambioTipoRecibo() {
+  const key = tipoReciboKey(document.getElementById('recibo-tipo')?.value);
+  const wrapStock = document.getElementById('wrap-recibo-stock');
+  const wrapQty = document.getElementById('wrap-recibo-qty');
+  const lblEq = document.getElementById('lbl-recibo-equipo');
+  const lblSv = document.getElementById('lbl-recibo-servicio');
+  const lblMo = document.getElementById('lbl-recibo-monto');
+  const inpEq = document.getElementById('recibo-equipo');
+  const inpSv = document.getElementById('recibo-servicio');
+  const inpMo = document.getElementById('recibo-monto');
+  const wrapOrden = document.getElementById('recibo-orden')?.closest('.form-group');
+
+  if (wrapStock) wrapStock.style.display = key === 'repuesto' ? '' : 'none';
+  if (wrapQty) wrapQty.style.display = key === 'repuesto' ? '' : 'none';
+  if (wrapOrden) wrapOrden.style.display = key === 'repuesto' ? 'none' : '';
+
+  if (key === 'servicio') {
+    if (lblEq) lblEq.textContent = 'Equipo *';
+    if (lblSv) lblSv.textContent = 'Servicio realizado *';
+    if (lblMo) lblMo.textContent = 'Monto total (Bs) *';
+    if (inpEq) inpEq.placeholder = 'Marca y modelo del celular';
+    if (inpSv) inpSv.placeholder = 'Ej: Cambio de pantalla';
+    if (inpMo) inpMo.placeholder = '0.00';
+  } else if (key === 'repuesto') {
+    if (lblEq) lblEq.textContent = 'Producto / repuesto *';
+    if (lblSv) lblSv.textContent = 'Detalle de venta *';
+    if (lblMo) lblMo.textContent = 'Monto total (Bs) *';
+    if (inpEq) inpEq.placeholder = 'Ej: Pantalla Samsung A12';
+    if (inpSv) inpSv.placeholder = 'Venta de repuesto';
+    poblarSelectRepuestosRecibo();
+  } else {
+    if (lblEq) lblEq.textContent = 'Equipo a entregar *';
+    if (lblSv) lblSv.textContent = 'Trabajo realizado *';
+    if (lblMo) lblMo.textContent = 'Monto cobrado (Bs)';
+    if (inpEq) inpEq.placeholder = 'Equipo que se entrega al cliente';
+    if (inpSv) inpSv.placeholder = 'Ej: Reparación finalizada — entrega';
+    if (inpMo) { inpMo.placeholder = '0 si solo es constancia'; }
+  }
+}
+
+function poblarSelectRepuestosRecibo() {
+  const sel = document.getElementById('recibo-stock-item');
+  if (!sel) return;
+  const items = (stockData || []).filter((s) => s.qty > 0);
+  sel.innerHTML =
+    '<option value="">— Elegir repuesto (opcional) —</option>' +
+    items
+      .map(
+        (s) =>
+          `<option value="${s.dbId}" data-name="${String(s.name).replace(/"/g, '&quot;')}" data-precio="${s.precio}" data-qty="${s.qty}">${s.name} (stock: ${s.qty} · Bs ${fmtMonto(s.precio)})</option>`
+      )
+      .join('');
+}
+
+function onElegirRepuestoRecibo() {
+  const sel = document.getElementById('recibo-stock-item');
+  if (!sel || !sel.value) return;
+  const opt = sel.options[sel.selectedIndex];
+  const name = opt.getAttribute('data-name') || opt.textContent;
+  const precio = parseFloat(opt.getAttribute('data-precio') || '0') || 0;
+  const qty = Math.max(1, parseInt(document.getElementById('recibo-qty')?.value || '1', 10) || 1);
+  document.getElementById('recibo-equipo').value = name;
+  document.getElementById('recibo-servicio').value = 'Venta de repuesto × ' + qty;
+  document.getElementById('recibo-monto').value = (precio * qty).toFixed(2);
+}
+
 async function generarRecibo() {
   if (_locks['recibo']) {
     if (typeof showToast === 'function') showToast('Espera, ya se está procesando…', 'warn');
@@ -2685,7 +3137,14 @@ async function generarRecibo() {
   const tecnico_id = document.getElementById('recibo-tech').value || null;
   const sucursal_id = document.getElementById('recibo-sucursal').value || null;
   const obs = document.getElementById('recibo-obs').value.trim();
-  const tipo = document.getElementById('recibo-tipo')?.value || null;
+  const tipoRaw = document.getElementById('recibo-tipo')?.value || 'servicio';
+  const tipoKey = tipoReciboKey(tipoRaw);
+  const tipoMap = {
+    servicio: 'Recibo de servicio técnico',
+    repuesto: 'Recibo de venta de repuesto',
+    entrega: 'Recibo de entrega de equipo',
+  };
+  const tipo = tipoMap[tipoKey] || tipoRaw;
 
   if (!cliente || !equipo || !servicio) {
     alert('Completa Cliente, Equipo y Servicio.');
@@ -2705,9 +3164,23 @@ async function generarRecibo() {
     await loadOrders(); // si venía de una orden, ya quedó "Listo"
     limpiarFormRecibo();
     showToast(`✓ Recibo ${recibo.num_recibo} generado`);
+    // Descontar stock si venta de repuesto
+    if (tipoKey === 'repuesto') {
+      const stockId = document.getElementById('recibo-stock-item')?.value;
+      const qty = Math.max(1, parseInt(document.getElementById('recibo-qty')?.value || '1', 10) || 1);
+      if (stockId && typeof StockAPI !== 'undefined' && StockAPI.ajustar) {
+        try {
+          await StockAPI.ajustar(stockId, 'sub', qty);
+          if (typeof loadStock === 'function') await loadStock();
+          showToast('Stock actualizado (−' + qty + ')', 'info');
+        } catch (se) {
+          showToast('Recibo OK, pero no se descontó stock: ' + (se.message || se), 'warn');
+        }
+      }
+    }
     mostrarVistaPreviaRecibo(recibo.id);
   } catch (e) {
-    alert('No se pudo generar el recibo: ' + e.message);
+    showToast('No se pudo generar el recibo: ' + e.message, 'error');
   }
 
   } finally {
@@ -2748,9 +3221,9 @@ async function guardarCliente() {
   const sucursal_id = document.getElementById('new-cli-branch').value || null;
 
   if (!validarNombre(name, 'Nombre del cliente')) return;
-  if (!validarTelefono(phone, true)) return;
+  if (!validarTelefono(phone, true, { inputId: 'new-cli-phone' })) return;
 
-  const phoneLimpio = limpiarTelefono(phone);
+  const phoneLimpio = telefonoParaGuardar('new-cli-phone') || limpiarTelefono(phone);
 
   // Anti-duplicado local (mismo teléfono)
   const existente = (clientesData || []).find(function (c) {
@@ -2802,15 +3275,21 @@ function populateReciboOrden() {
 }
 
 function renderUsers() {
-  const el = document.getElementById('usuarios-body');
+  // Siempre usar la versión con acciones (Inactivar/Activar)
+  if (typeof renderUsersEnhanced === 'function') {
+    renderUsersEnhanced();
+    return;
+  }
+  const el = document.getElementById('users-body') || document.getElementById('usuarios-body');
   if (!el) return;
-  el.innerHTML = tecnicos
+  el.innerHTML = (tecnicos || [])
     .map(
       (t) => `<tr>
       <td><code class="code-tag">${t.code}</code></td>
       <td>${t.name}</td><td>${t.user}</td><td>${t.rol}</td>
       <td>${t.branch || '—'}</td>
       <td>${t.active ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-red">Inactivo</span>'}</td>
+      <td></td>
     </tr>`
     )
     .join('');
@@ -2834,6 +3313,8 @@ function renderReportTech() {
 // ---------- modals ----------
 function openModal(tipo) {
   document.querySelectorAll('.modal-overlay').forEach((m) => m.classList.add('hidden'));
+  // Ocultar cuadradito de stock para que no tape el modal
+  document.getElementById('stock-toast')?.classList.add('hidden');
   const map = {
     orden: 'modal',
     'editar-orden': 'modal-editar-orden',
@@ -2847,14 +3328,41 @@ function openModal(tipo) {
     'ajuste-stock': 'modal-ajuste-stock',
     repuesto: 'modal-repuesto',
     'historial-add': 'modal-historial-add',
+    'qr-cobro': 'modal-qr-cobro',
   };
   const id = map[tipo] || tipo;
   const el = document.getElementById(id);
-  if (el) el.classList.remove('hidden');
+  if (el) {
+    el.classList.remove('hidden');
+    // limpiar campos al abrir "agregar repuesto"
+    if (tipo === 'repuesto') {
+      ['new-rep-name', 'new-rep-precio', 'new-rep-foto-url'].forEach((fid) => {
+        const i = document.getElementById(fid);
+        if (i) i.value = '';
+      });
+      const q = document.getElementById('new-rep-qty');
+      if (q) q.value = '0';
+      const m = document.getElementById('new-rep-min');
+      if (m) m.value = '5';
+      const prev = document.getElementById('new-rep-foto-prev');
+      if (prev) { prev.style.display = 'none'; prev.removeAttribute('src'); }
+      const src = document.getElementById('new-rep-foto-src');
+      if (src) src.textContent = '';
+      const file = document.getElementById('new-rep-foto');
+      if (file) file.value = '';
+    }
+  } else {
+    console.warn('Modal no encontrado:', id, tipo);
+    if (typeof showToast === 'function') showToast('No se pudo abrir el formulario', 'error');
+  }
 }
 
 function closeModal() {
   document.querySelectorAll('.modal-overlay').forEach((m) => m.classList.add('hidden'));
+  // Volver a mostrar alerta de stock si sigue habiendo críticos
+  if (typeof revisarAlertasStock === 'function') {
+    setTimeout(revisarAlertasStock, 200);
+  }
 }
 
 document.addEventListener('click', (e) => {
@@ -2909,30 +3417,239 @@ function generarReporte() {
 }
 
 function exportarReportePDF() {
-  // Impresión limpia del panel de reportes
-  const panel = document.getElementById('panel-reportes');
-  if (!panel) { showToast('No se encontró el panel de reportes', 'error'); return; }
+  // PDF dinámico: no clona el panel (evita inputs y basura visual)
+  const desde = document.getElementById('rep-desde')?.value || '';
+  const hasta = document.getElementById('rep-hasta')?.value || '';
+  const sucFiltro = window.currentSucursalFilter || '';
+  const sucNombre = (() => {
+    if (!sucFiltro) return 'Todas las sucursales';
+    const s = (window._sucursales || []).find((x) => String(x.id) === String(sucFiltro));
+    return s ? (s.nombre || s.name) : ('Sucursal #' + sucFiltro);
+  })();
+
+  const limpiaBranch = (b) => {
+    const t = String(b || '—').trim();
+    if (!t || /^ambas$/i.test(t) || /^todas/i.test(t)) return '—';
+    return t;
+  };
+
+  function enRango(fechaStr) {
+    if (!desde && !hasta) return true;
+    if (!fechaStr || fechaStr === '—') return !desde && !hasta;
+    let d = null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(fechaStr)) d = fechaStr.slice(0, 10);
+    else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fechaStr)) {
+      const p = fechaStr.split('/');
+      d = p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
+    }
+    if (!d) return true;
+    if (desde && d < desde) return false;
+    if (hasta && d > hasta) return false;
+    return true;
+  }
+
+  let ordenesBase = (ordersData || []).filter((o) => o.statusRaw === 'listo' && enRango(o.date));
+  let todasRango = (ordersData || []).filter((o) => enRango(o.date));
+  if (sucFiltro && typeof matchSucursalRow === 'function') {
+    ordenesBase = ordenesBase.filter(matchSucursalRow);
+    todasRango = todasRango.filter(matchSucursalRow);
+  }
+  const celFiltradas = (celularesData || []).filter((v) => enRango(v.fecha));
+  const ventasFiltradas = ventasHoy || [];
+
+  const gananciaCel = celFiltradas.reduce((s, v) => s + (parseFloat(v.ganancia) || 0), 0);
+  const ingresosServicios = ordenesBase.reduce((s, o) => s + (parseFloat(o.monto) || 0), 0);
+  const ingresosVentas = ventasFiltradas.reduce((s, v) => s + (parseFloat(v.monto) || 0), 0);
+  const gananciaNeta = gananciaCel + ingresosServicios + ingresosVentas;
+  const ticket = ordenesBase.length ? ingresosServicios / ordenesBase.length : 0;
+  const tasa = todasRango.length ? Math.round((ordenesBase.length / todasRango.length) * 100) : 0;
+
+  // Servicios frecuentes
+  const porServ = {};
+  ordenesBase.forEach((o) => {
+    const k = o.service || 'Otro';
+    if (!porServ[k]) porServ[k] = { name: k, n: 0, ingresos: 0 };
+    porServ[k].n++;
+    porServ[k].ingresos += parseFloat(o.monto) || 0;
+  });
+  const servList = Object.values(porServ).sort((a, b) => b.n - a.n);
+  const servTotalIng = servList.reduce((s, x) => s + x.ingresos, 0) || 1;
+
+  // Técnicos
+  const porTech = {};
+  ordenesBase.forEach((o) => {
+    const key = o.techCode || o.techName || '—';
+    if (!porTech[key]) {
+      porTech[key] = {
+        code: o.techCode || '—',
+        name: o.techName || '—',
+        ordenes: 0,
+        ingresos: 0,
+        branch: limpiaBranch(o.branch),
+      };
+    }
+    porTech[key].ordenes++;
+    porTech[key].ingresos += parseFloat(o.monto) || 0;
+    if (o.branch) porTech[key].branch = limpiaBranch(o.branch);
+  });
+  const techList = Object.values(porTech).sort((a, b) => b.ordenes - a.ordenes);
+
+  // Sucursales
+  const porSuc = {};
+  ordenesBase.forEach((o) => {
+    const k = limpiaBranch(o.branch) || 'Sin sucursal';
+    if (k === '—') return;
+    if (!porSuc[k]) porSuc[k] = { name: k, n: 0, ingresos: 0 };
+    porSuc[k].n++;
+    porSuc[k].ingresos += parseFloat(o.monto) || 0;
+  });
+  const sucList = Object.values(porSuc).sort((a, b) => b.ingresos - a.ingresos);
+
+  const periodo =
+    (desde || hasta)
+      ? ((desde || '…') + ' → ' + (hasta || '…'))
+      : 'Todo el historial cargado';
+
+  const esc = (s) => String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const filasServ = servList.length
+    ? servList.map((s) => `<tr>
+        <td>${esc(s.name)}</td>
+        <td style="text-align:center">${s.n}</td>
+        <td>Bs ${fmtMonto(s.ingresos)}</td>
+        <td style="text-align:center">${Math.round((s.ingresos / servTotalIng) * 100)}%</td>
+      </tr>`).join('')
+    : '<tr><td colspan="4" style="text-align:center;color:#888">Sin servicios listos en el rango</td></tr>';
+
+  const filasTech = techList.length
+    ? techList.map((t) => `<tr>
+        <td><code>${esc(t.code)}</code></td>
+        <td>${esc(t.name)}</td>
+        <td style="text-align:center">${t.ordenes}</td>
+        <td>Bs ${fmtMonto(t.ingresos)}</td>
+        <td>${esc(t.branch)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:#888">Sin datos</td></tr>';
+
+  const filasSuc = sucList.length
+    ? sucList.map((s) => `<tr>
+        <td>${esc(s.name)}</td>
+        <td style="text-align:center">${s.n}</td>
+        <td>Bs ${fmtMonto(s.ingresos)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="3" style="text-align:center;color:#888">Sin datos por sucursal</td></tr>';
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<title>MiCel — Reporte operativo</title>
+<style>
+  :root { --red:#e11d48; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color: var(--ink); margin: 0; padding: 28px 32px; font-size: 12.5px; }
+  .head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid var(--red); padding-bottom:14px; margin-bottom:18px; }
+  .brand { font-size:22px; font-weight:800; letter-spacing:-0.02em; }
+  .brand span { color: var(--red); }
+  .meta { text-align:right; color:var(--muted); font-size:11px; line-height:1.5; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 18px; }
+  .chip { background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:5px 12px; font-size:11px; color:var(--muted); }
+  .chip strong { color:var(--ink); }
+  .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
+  .metric { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .metric .lbl { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:6px; }
+  .metric .val { font-size:20px; font-weight:800; }
+  .metric .sub { font-size:10px; color:var(--muted); margin-top:4px; }
+  h2 { font-size:13px; margin:22px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line); color:var(--ink); }
+  table { width:100%; border-collapse:collapse; margin-bottom:8px; }
+  th { background:var(--bg); text-align:left; padding:8px 10px; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); border-bottom:2px solid var(--line); }
+  td { padding:8px 10px; border-bottom:1px solid var(--line); }
+  tr:nth-child(even) td { background:#fcfcfd; }
+  code { font-family: ui-monospace, monospace; font-size:11px; background:#f1f5f9; padding:2px 6px; border-radius:4px; }
+  .foot { margin-top:28px; padding-top:12px; border-top:1px solid var(--line); color:var(--muted); font-size:10px; display:flex; justify-content:space-between; }
+  @media print {
+    body { padding: 12px 16px; }
+    .metrics { break-inside: avoid; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; }
+  }
+</style>
+</head><body>
+  <div class="head">
+    <div>
+      <div class="brand">Mi<span>CEL</span> — Reporte operativo</div>
+      <div style="color:var(--muted);font-size:11px;margin-top:4px">Sistema de gestión integral</div>
+    </div>
+    <div class="meta">
+      <div><strong>Generado:</strong> ${esc(new Date().toLocaleString('es-BO'))}</div>
+      <div><strong>Usuario:</strong> ${esc(currentUser?.name || currentUser?.user || '—')}</div>
+    </div>
+  </div>
+
+  <div class="chips">
+    <div class="chip">Periodo: <strong>${esc(periodo)}</strong></div>
+    <div class="chip">Sucursal: <strong>${esc(sucNombre)}</strong></div>
+    <div class="chip">Órdenes listas: <strong>${ordenesBase.length}</strong></div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="lbl">Servicios completados</div>
+      <div class="val">${ordenesBase.length}</div>
+      <div class="sub">${todasRango.length} órdenes en el rango</div>
+    </div>
+    <div class="metric">
+      <div class="lbl">Ganancia neta</div>
+      <div class="val">Bs ${fmtMonto(gananciaNeta)}</div>
+      <div class="sub">Cel Bs ${fmtMonto(gananciaCel)} · Serv Bs ${fmtMonto(ingresosServicios + ingresosVentas)}</div>
+    </div>
+    <div class="metric">
+      <div class="lbl">Ticket promedio</div>
+      <div class="val">Bs ${fmtMonto(ticket)}</div>
+      <div class="sub">por servicio listo</div>
+    </div>
+    <div class="metric">
+      <div class="lbl">Tasa de cierre</div>
+      <div class="val">${tasa}%</div>
+      <div class="sub">${ordenesBase.length} listos / ${todasRango.length} totales</div>
+    </div>
+  </div>
+
+  <h2>Servicios más frecuentes</h2>
+  <table>
+    <thead><tr><th>Servicio</th><th style="text-align:center">Cantidad</th><th>Ingresos (Bs)</th><th style="text-align:center">Participación</th></tr></thead>
+    <tbody>${filasServ}</tbody>
+  </table>
+
+  <h2>Rendimiento por técnico</h2>
+  <table>
+    <thead><tr><th>Código</th><th>Técnico</th><th style="text-align:center">Órdenes</th><th>Ingresos</th><th>Sucursal</th></tr></thead>
+    <tbody>${filasTech}</tbody>
+  </table>
+
+  <h2>Rendimiento por sucursal</h2>
+  <table>
+    <thead><tr><th>Sucursal</th><th style="text-align:center">Órdenes listas</th><th>Ingresos (Bs)</th></tr></thead>
+    <tbody>${filasSuc}</tbody>
+  </table>
+
+  <div class="foot">
+    <span>MiCel · Documento generado automáticamente</span>
+    <span>Página impresa / PDF</span>
+  </div>
+  <script>window.onload=function(){setTimeout(function(){window.print()},200)}<\/script>
+</body></html>`;
+
   const win = window.open('', '_blank');
   if (!win) { showToast('Permite ventanas emergentes para exportar', 'error'); return; }
-  win.document.write(`<!DOCTYPE html><html><head><title>Reporte MiCel</title>
-    <style>
-      body{font-family:system-ui,sans-serif;padding:24px;color:#111}
-      h1{font-size:20px;margin:0 0 8px} h2{font-size:14px;margin:18px 0 8px;color:#333}
-      table{width:100%;border-collapse:collapse;font-size:12px}
-      th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
-      th{background:#f3f4f6}
-      .metric{display:inline-block;margin:8px 16px 8px 0;padding:10px 14px;border:1px solid #e5e7eb;border-radius:8px}
-      .metric b{display:block;font-size:18px}
-      @media print{button{display:none}}
-    </style></head><body>
-    <h1>MiCel — Reporte operativo</h1>
-    <p style="color:#666;font-size:12px">Generado: ${new Date().toLocaleString('es-BO')}</p>
-    ${panel.innerHTML}
-    <script>window.onload=function(){window.print()}<\/script>
-    </body></html>`);
+  win.document.open();
+  win.document.write(html);
   win.document.close();
-  showToast('✓ Listo para imprimir / guardar PDF');
+  showToast('✓ PDF listo — elige “Guardar como PDF” en la impresora');
 }
+
 
 // ==========================================
 
@@ -3225,6 +3942,7 @@ function renderHistorial() {
 }
 
 function filterHistorial(q) {
+  window._historialSearch = (q || '').toString().toLowerCase();
   renderHistorial();
 }
 
@@ -3249,11 +3967,12 @@ function mostrarQRDesdeHistorial(id) {
 // DASHBOARD 100% REAL
 // ==========================================
 function updateDashboard() {
-  const activas = (ordersData || []).filter(o => o.statusRaw !== 'listo').length;
+  const _ordDash = (typeof ordersVisible === 'function' ? ordersVisible() : (ordersData || []));
+  const activas = _ordDash.filter(o => o.statusRaw !== 'listo').length;
   const hoy = new Date().toLocaleDateString('es-BO');
-  const ingresaronHoy = (ordersData || []).filter(o => o.date === hoy).length;
+  const ingresaronHoy = _ordDash.filter(o => o.date === hoy).length;
 
-  const ingresosOrdenes = (ordersData || [])
+  const ingresosOrdenes = _ordDash
     .filter(o => o.statusRaw === 'listo')
     .reduce((s, o) => s + (parseFloat(o.monto) || 0), 0);
   const ingresosVentas = (ventasHoy || []).reduce((s, v) => s + (parseFloat(v.monto) || 0), 0);
@@ -3448,7 +4167,7 @@ function renderReportesCompletos(desde, hasta) {
           '<td>' + t.name + ' <span class="badge badge-amber" style="font-size:10px">' + (t.rol || 'Técnico') + '</span></td>' +
           '<td>' + t.ordenes + '</td>' +
           '<td>Bs ' + fmtMonto(t.ingresos) + '</td>' +
-          '<td>' + (t.branch || '—') + '</td>' +
+          '<td>' + ((t.branch && !/^ambas$/i.test(String(t.branch).trim())) ? t.branch : '—') + '</td>' +
         '</tr>').join('')
       : '<tr><td colspan="5" style="text-align:center;color:var(--gray-400)">Sin datos de técnicos</td></tr>';
   }
@@ -3889,43 +4608,72 @@ async function guardarPerfil() {
 
 // SuperAdmin: ver foto + datos personalizados en lista de usuarios
 function renderUsersEnhanced() {
-  const tbody = document.getElementById('users-body');
+  window.renderUsers = renderUsersEnhanced;
+  const tbody = document.getElementById('users-body') || document.getElementById('usuarios-body');
   if (!tbody) return;
-  const esSuperAdmin = currentUser && currentUser.rolRaw === 'superadmin';
-  const esAdmin = currentUser && (currentUser.rolRaw === 'administrador' || esSuperAdmin);
 
-  tbody.innerHTML = (tecnicos || []).map(t => {
-    const foto = fotoUrlUsuario(t) || (perfilesExtra[t.user] || {}).foto;
+  const rolMe = String(currentUser?.rolRaw || currentUser?.rol || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const esSuperAdmin = rolMe.indexOf('super') >= 0;
+  const esAdmin = esSuperAdmin || rolMe.indexOf('admin') >= 0;
+
+  tbody.innerHTML = (tecnicos || []).map(function (t) {
+    const foto = (typeof fotoUrlUsuario === 'function' ? fotoUrlUsuario(t) : null) ||
+      ((typeof perfilesExtra !== 'undefined' && perfilesExtra[t.user]) || {}).foto;
     const rolBadge = t.rolRaw === 'superadmin'
       ? '<span class="superadmin-badge">⭐ Super Admin</span>'
-      : t.rolRaw === 'administrador'
+      : (t.rolRaw === 'administrador' || String(t.rol || '').toLowerCase().indexOf('admin') >= 0)
         ? '<span class="badge badge-purple">Administrador</span>'
         : '<span class="badge badge-amber">Técnico</span>';
     const avatarHtml = foto
       ? '<img src="' + foto + '" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover">'
-      : '<div class="avatar">' + initials(t.name) + '</div>';
+      : '<div class="avatar">' + (typeof initials === 'function' ? initials(t.name) : '?') + '</div>';
+
+    const rolNorm = String(t.rolRaw || t.rol || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    const esAdminFila = rolNorm.indexOf('admin') >= 0 || rolNorm.indexOf('super') >= 0;
+    const esTecnicoFila = !esAdminFila;
+
+    // Iconos: ⊘ = inactivar | ✓ = activar
+    const btnIcon =
+      '<button type="button" class="btn-icon ' + (t.active ? 'danger' : '') + '" title="' +
+      (t.active ? 'Inactivar' : 'Activar') +
+      '" onclick="event.stopPropagation();toggleUsuarioActivo(' + t.id + ')">' +
+      (t.active ? '⊘' : '✓') + '</button>';
 
     let acciones = '';
     if (esSuperAdmin) {
-      acciones = '<button class="btn-icon" title="Editar usuario" onclick="abrirEditarUsuario(' + t.id + ')">✎</button>' +
-        '<button class="btn-icon danger" title="' + (t.active ? 'Desactivar' : 'Activar') + '" onclick="toggleUsuarioActivo(' + t.id + ')">' +
-        (t.active ? '⊘' : '✓') + '</button>';
+      // Super Admin: editar + ⊘/✓
+      acciones =
+        '<button type="button" class="btn-icon" title="Editar usuario" onclick="abrirEditarUsuario(' +
+        t.id + ')">✎</button>' + btnIcon;
+    } else if (esAdmin && esTecnicoFila) {
+      // Admin: solo ⊘/✓ en técnicos
+      acciones = btnIcon;
     }
 
+    const branch = (t.branch && !/^ambas$/i.test(String(t.branch).trim())) ? t.branch : '—';
     const tel = t.telefono ? '<div style="font-size:11px;color:var(--gray-400)">' + t.telefono + '</div>' : '';
     const mail = t.email ? '<div style="font-size:11px;color:var(--gray-400)">' + t.email + '</div>' : '';
 
     return '<tr>' +
       '<td><code class="code-tag">' + t.code + '</code></td>' +
       '<td><div class="avatar-cell">' + avatarHtml + '<div><div>' + t.name + '</div>' + tel + mail + '</div></div></td>' +
-      '<td style="font-family:var(--font-mono);font-size:12px;color:var(--gray-400)">' + t.user + '</td>' +
+      '<td style="font-family:var(--font-mono);font-size:12px;color:var(--gray-400)">' + (t.user || '') + '</td>' +
       '<td>' + rolBadge + '</td>' +
-      '<td>' + (t.branch || '—') + '</td>' +
-      '<td><span class="badge ' + (t.active ? 'badge-green' : 'badge-red') + '">' + (t.active ? 'Activo' : 'Inactivo') + '</span></td>' +
-      '<td style="text-align:right">' + acciones + '</td>' +
+      '<td>' + branch + '</td>' +
+      '<td><span class="badge ' + (t.active ? 'badge-green' : 'badge-red') + '">' +
+        (t.active ? 'Activo' : 'Inactivo') + '</span></td>' +
+      '<td style="text-align:right;white-space:nowrap">' + acciones + '</td>' +
     '</tr>';
   }).join('');
 }
+
+
 
 // loadUsuarios: guardar email, telefono, foto para SuperAdmin
 (function() {
@@ -4243,13 +4991,35 @@ function eliminarQrCobro() {
 function mostrarQrCobro() {
   const cfg = loadQrCobroConfig();
   if (!cfg || !cfg.imagen) {
-    showToast('Aún no hay QR cargado. Súbelo en Usuarios → QR de cobro.', 'warn');
+    showToast('Aún no hay QR cargado. Admin/SuperAdmin: Usuarios → QR de cobro.', 'warn');
     return;
   }
-  const t = document.getElementById('modal-qr-cobro-titulo');
-  const img = document.getElementById('modal-qr-cobro-img');
+  let t = document.getElementById('modal-qr-cobro-titulo');
+  let img = document.getElementById('modal-qr-cobro-img');
+  // Si no existe el modal, crearlo al vuelo para que TODOS los roles lo vean
+  if (!document.getElementById('modal-qr-cobro')) {
+    const ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.id = 'modal-qr-cobro';
+    ov.innerHTML = `<div class="modal-box" style="width:min(420px,92vw);text-align:center">
+      <div class="modal-header"><h3 id="modal-qr-cobro-titulo">Pagar con QR</h3>
+      <button type="button" class="modal-close" onclick="closeModal()">✕</button></div>
+      <div style="padding:16px 20px 8px">
+        <img id="modal-qr-cobro-img" alt="QR" style="max-width:280px;width:100%;border-radius:12px;background:#fff;padding:12px">
+        <p style="font-size:12px;color:var(--gray-400);margin-top:12px">Escanea con la app de tu banco o billetera</p>
+      </div>
+      <div class="modal-footer" style="justify-content:center">
+        <button type="button" class="btn-primary" onclick="closeModal()">Cerrar</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    t = document.getElementById('modal-qr-cobro-titulo');
+    img = document.getElementById('modal-qr-cobro-img');
+  }
   if (t) t.textContent = cfg.titulo || 'Pagar con QR — MiCel';
-  if (img) img.src = cfg.imagen;
+  if (img) {
+    img.src = cfg.imagen;
+    img.style.display = 'block';
+  }
   if (typeof openModal === 'function') openModal('qr-cobro');
   else {
     const m = document.getElementById('modal-qr-cobro');
@@ -4326,3 +5096,140 @@ function imprimirOrdenTrabajo(orderId) {
   w.focus();
   setTimeout(() => w.print(), 300);
 }
+
+
+async function toggleUsuarioActivo(id) {
+  window.toggleUsuarioActivo = toggleUsuarioActivo;
+  if (!(typeof esAdminOSuper === 'function' && esAdminOSuper())) {
+    showToast('Solo Admin / Super Admin pueden activar o inactivar usuarios', 'error');
+    return;
+  }
+  const t = (tecnicos || []).find((u) => String(u.id) === String(id));
+  if (!t) { showToast('Usuario no encontrado', 'error'); return; }
+  // Admin solo técnicos
+  {
+    const me = String(currentUser?.rolRaw || '').toLowerCase();
+    const target = String(t.rolRaw || t.rol || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const soyAdmin = me === 'administrador';
+    const esAdminTarget = target.indexOf('admin') >= 0 || target.indexOf('super') >= 0;
+    if (soyAdmin && esAdminTarget) {
+      showToast('Un administrador solo puede inactivar técnicos', 'error');
+      return;
+    }
+  }
+  const accion = t.active ? 'inactivar' : 'activar';
+  if (!confirm('¿Seguro que deseas ' + accion + ' a ' + t.name + '?')) return;
+  try {
+    await UsuariosAPI.toggleActivo(id);
+    showToast(t.name + ' ahora está ' + (t.active ? 'inactivo' : 'activo'));
+    await loadUsuarios();
+    if (typeof renderUsersEnhanced === 'function') renderUsersEnhanced();
+    else if (typeof renderUsers === 'function') renderUsers();
+    if (typeof populateTechSelects === 'function') populateTechSelects();
+  } catch (e) {
+    showToast(e.message || 'No se pudo cambiar el estado', 'error');
+  }
+}
+
+
+
+// ===== BOTONES ACTIVAR/INACTIVAR (simple y forzado) =====
+function forceBotonesUsuarios() {
+  try {
+    if (!currentUser) return;
+    const me = String(currentUser.rolRaw || currentUser.rol || '').toLowerCase();
+    const soySuper = me.indexOf('super') >= 0;
+    const soyAdmin = soySuper || me.indexOf('admin') >= 0;
+    if (!soyAdmin) return;
+
+    const tbody = document.getElementById('users-body');
+    if (!tbody) return;
+
+    tbody.querySelectorAll('tr').forEach(function (tr) {
+      if (tr.querySelector('.btn-force-toggle, button[onclick*="toggleUsuarioActivo"]')) return;
+
+      const codeEl = tr.querySelector('.code-tag, code');
+      const code = codeEl ? codeEl.textContent.trim() : '';
+      const t = (tecnicos || []).find(function (u) {
+        return String(u.code) === code;
+      });
+      if (!t) return;
+
+      const targetRol = String(t.rolRaw || t.rol || '').toLowerCase();
+      if (!soySuper && (targetRol.indexOf('admin') >= 0 || targetRol.indexOf('super') >= 0)) return;
+
+      let td = tr.querySelector('td:last-child');
+      if (!td) return;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-icon btn-force-toggle' + (t.active ? ' danger' : '');
+      btn.title = t.active ? 'Inactivar' : 'Activar';
+      btn.textContent = t.active ? '⊘' : '✓';
+      btn.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof toggleUsuarioActivo === 'function') toggleUsuarioActivo(t.id);
+      };
+      td.appendChild(btn);
+    });
+  } catch (err) {
+    console.warn('forceBotonesUsuarios', err);
+  }
+}
+
+// Reintentar al cambiar de panel y cada tanto en Usuarios
+(function hookBotonesUsuarios() {
+  const _nav = window.nav;
+  if (typeof _nav === 'function' && !_nav._btnUsersHook) {
+    window.nav = function (id, el) {
+      const r = _nav.apply(this, arguments);
+      if (id === 'usuarios') {
+        setTimeout(function () {
+          if (typeof renderUsersEnhanced === 'function') renderUsersEnhanced();
+          forceBotonesUsuarios();
+        }, 100);
+        setTimeout(forceBotonesUsuarios, 400);
+        setTimeout(forceBotonesUsuarios, 1000);
+      }
+      return r;
+    };
+    window.nav._btnUsersHook = true;
+  }
+  setInterval(function () {
+    const panel = document.getElementById('panel-usuarios');
+    if (panel && !panel.classList.contains('hidden')) forceBotonesUsuarios();
+  }, 2000);
+})();
+
+window.forceBotonesUsuarios = forceBotonesUsuarios;
+window.renderUsersEnhanced = typeof renderUsersEnhanced === 'function' ? renderUsersEnhanced : window.renderUsersEnhanced;
+
+
+async function unificarDuplicadosClientes() {
+  if (!(typeof esAdminOSuper === 'function' && esAdminOSuper())) {
+    showToast('Solo Admin / Super Admin', 'error');
+    return;
+  }
+  if (!confirm('¿Unificar clientes con el mismo teléfono?\nEj: 61154206 y 59161154206 se vuelven uno solo.')) return;
+  try {
+    const res = await api('/clientes/unificar-duplicados', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    showToast(res.message || 'Listo');
+    if (res.detalle && res.detalle.length) {
+      console.log('Fusionados:', res.detalle);
+      alert('Unificados:\n' + res.detalle.join('\n'));
+    }
+    if (res.errores && res.errores.length) {
+      console.warn(res.errores);
+    }
+    if (typeof loadClientes === 'function') await loadClientes();
+    else location.reload();
+  } catch (e) {
+    console.error(e);
+    showToast(e.message || 'No se pudo unificar (¿ruta registrada?)', 'error');
+  }
+}
+window.unificarDuplicadosClientes = unificarDuplicadosClientes;

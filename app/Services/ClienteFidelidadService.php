@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Cliente;
+use App\Support\ClientePhone;
 
 class ClienteFidelidadService
 {
@@ -66,8 +67,22 @@ class ClienteFidelidadService
         if (! empty($phone)) {
             $norm = preg_replace('/\D+/', '', $phone);
             if ($norm !== '') {
+                // Match exacto o por sufijo (59161154206 vs 61154206)
                 return Cliente::all()->first(function (Cliente $c) use ($norm) {
-                    return preg_replace('/\D+/', '', (string) $c->phone) === $norm;
+                    $cp = preg_replace('/\D+/', '', (string) $c->phone);
+                    if ($cp === '' || $cp === 'SN' || $cp === 'S/N') {
+                        return false;
+                    }
+                    if ($cp === $norm) {
+                        return true;
+                    }
+                    // el más largo termina con el más corto (mín. 7 dígitos)
+                    $a = $cp;
+                    $b = $norm;
+                    if (strlen($a) < strlen($b)) {
+                        [$a, $b] = [$b, $a];
+                    }
+                    return strlen($b) >= 7 && str_ends_with($a, $b);
                 });
             }
         }

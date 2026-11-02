@@ -11,9 +11,6 @@ class UserController extends Controller
 {
     /**
      * GET /api/usuarios
-     * Reemplaza el array fijo `tecnicos` de data.js — cualquier usuario logueado
-     * puede consultarlo (lo necesitas para los <select> de técnico y para
-     * mostrar nombres en órdenes/ventas/recibos).
      */
     public function index()
     {
@@ -24,7 +21,7 @@ class UserController extends Controller
 
     /**
      * POST /api/usuarios
-     * Crea un técnico/administrador nuevo. Admin y SuperAdmin pueden crear.
+     * Crea técnico o administrador. Admin y SuperAdmin pueden crear.
      */
     public function store(Request $request)
     {
@@ -35,7 +32,7 @@ class UserController extends Controller
             'username' => ['required', 'string', 'max:50', 'unique:users,username'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:4'],
-            'rol' => ['required', 'in:administrador,tecnico'], // superadmin no se crea desde aquí
+            'rol' => ['required', 'in:administrador,tecnico'],
             'sucursal_id' => ['nullable', 'exists:sucursales,id'],
         ]);
 
@@ -50,47 +47,42 @@ class UserController extends Controller
             'active' => true,
         ]);
 
-        return response()->json($this->formatUser($user), 201);
+        return response()->json($this->formatUser($user->load('sucursal')), 201);
     }
 
     /**
      * PATCH /api/usuarios/{user}/activo
-     * Activa o desactiva un usuario (en vez de borrarlo — así no se pierden
-     * sus órdenes/ventas/comisiones históricas).
-     *
-     * Igual que editar: SOLO SuperAdmin. Un Administrador puede CREAR gente
-     * nueva, pero no desactivar cuentas ya existentes (ni siquiera técnicos).
+     * Solo SuperAdmin.
      */
     public function toggleActivo(Request $request, User $user)
     {
-        $this->assertEsSuperAdmin($request);
+        // Admin y SuperAdmin pueden activar/inactivar
+        $this->assertEsAdmin($request);
 
         if ($user->id === $request->user()->id) {
             return response()->json(['message' => 'No puedes desactivar tu propia cuenta.'], 422);
         }
 
+        $actor = $request->user();
+
+        // Un Admin normal NO puede tocar SuperAdmin ni a otros administradores
+        if (! $actor->esSuperAdmin()) {
+            if (in_array($user->rol, ['superadmin', 'administrador'], true)) {
+                return response()->json([
+                    'message' => 'Un administrador solo puede activar/inactivar técnicos.',
+                ], 403);
+            }
+        }
+
         $user->active = ! $user->active;
         $user->save();
 
-        // Si lo desactivan, se le revocan sus tokens para cerrarle la sesión de inmediato
-        if (! $user->active) {
-            $user->tokens()->delete();
-        }
-
-        return response()->json($this->formatUser($user));
+        return response()->json($this->formatUser($user->load('sucursal')));
     }
 
     /**
      * PUT /api/usuarios/{user}
-     * Edita los datos de otro usuario: nombre, username, correo, rol,
-     * sucursal y (opcionalmente) resetea su contraseña.
-     *
-     * SOLO SuperAdmin — ni siquiera un Administrador puede tocar esto.
-     * Esto es justamente lo que permite recuperar a alguien que olvidó su
-     * contraseña (cosa que antes nadie podía hacer, porque /perfil/password
-     * exige la contraseña ACTUAL).
-     *
-     * El campo "password" es opcional: si no lo mandas, no se toca.
+     * Solo SuperAdmin. Password opcional.
      */
     public function update(Request $request, User $user)
     {
@@ -107,7 +99,6 @@ class UserController extends Controller
 
         if (! empty($data['password'])) {
             $data['password'] = Hash::make($data['password']);
-            // Si le resetean la contraseña, se le cierra la sesión actual por seguridad.
             $user->tokens()->delete();
         } else {
             unset($data['password']);
@@ -115,12 +106,11 @@ class UserController extends Controller
 
         $user->update($data);
 
-        return response()->json($this->formatUser($user));
+        return response()->json($this->formatUser($user->load('sucursal')));
     }
 
     // ===== Helpers =====
 
-    /** Admin o SuperAdmin: puede ver y CREAR usuarios. */
     private function assertEsAdmin(Request $request): void
     {
         if (! $request->user()->esAdministrador()) {
@@ -128,7 +118,6 @@ class UserController extends Controller
         }
     }
 
-    /** Solo SuperAdmin: puede EDITAR datos/contraseña y activar/desactivar. */
     private function assertEsSuperAdmin(Request $request): void
     {
         if (! $request->user()->esSuperAdmin()) {
@@ -136,29 +125,49 @@ class UserController extends Controller
         }
     }
 
+    /**
+     * Genera TEC-01, TEC-02, … usando el MÁXIMO código existente
+     * (no el id de la tabla), y evita duplicados.
+     */
     private function siguienteCodigo(): string
     {
-        $ultimo = User::orderByDesc('id')->value('id') ?? 0;
-        return 'TEC-' . str_pad((string) ($ultimo + 1), 2, '0', STR_PAD_LEFT);
+        $max = 0;
+
+        foreach (User::query()->pluck('code') as $code) {
+            if (preg_match('/^TEC-(\d+)$/i', (string) $code, $m)) {
+                $n = (int) $m[1];
+                if ($n > $max) {
+                    $max = $n;
+                }
+            }
+        }
+
+        $candidato = $max + 1;
+
+        do {
+            $code = 'TEC-'.str_pad((string) $candidato, 2, '0', STR_PAD_LEFT);
+            $existe = User::where('code', $code)->exists();
+            $candidato++;
+        } while ($existe);
+
+        return $code;
     }
 
-
-
-private function formatUser(User $u): array
-{
-    return [
-        'id' => $u->id,
-        'code' => $u->code,
-        'username' => $u->username,
-        'name' => $u->name,
-        'email' => $u->email,
-        'rol' => $u->rol,
-        'sucursal_id' => $u->sucursal_id,
-        'sucursal' => $u->sucursal?->nombre,
-        'active' => $u->active,
-        'telefono' => $u->telefono,
-        'foto_path' => $u->foto_path,
-        'foto_url' => $u->foto_path ? asset('storage/' . $u->foto_path) : null,
-    ];
-}
+    private function formatUser(User $u): array
+    {
+        return [
+            'id' => $u->id,
+            'code' => $u->code,
+            'username' => $u->username,
+            'name' => $u->name,
+            'email' => $u->email,
+            'rol' => $u->rol,
+            'sucursal_id' => $u->sucursal_id,
+            'sucursal' => $u->sucursal?->nombre,
+            'active' => $u->active,
+            'telefono' => $u->telefono,
+            'foto_path' => $u->foto_path,
+            'foto_url' => $u->foto_path ? asset('storage/'.$u->foto_path) : null,
+        ];
+    }
 }
