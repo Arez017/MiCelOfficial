@@ -13,6 +13,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // SQLite (tests) no soporta ALTER TABLE ... ADD CONSTRAINT
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement(
             'ALTER TABLE planes_pago
              ADD CONSTRAINT chk_planes_pago_numero_cuotas
@@ -22,6 +27,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement('ALTER TABLE planes_pago DROP CONSTRAINT chk_planes_pago_numero_cuotas');
     }
 };
