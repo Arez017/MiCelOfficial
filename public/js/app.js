@@ -1028,6 +1028,7 @@ const navConfig = {
   stock: { title: 'Control de Stock', sub: 'Inventario de repuestos tecnológicos', btn: '+ Agregar repuesto' },
   ventas: { title: 'Ventas', sub: 'Registro de ingresos por servicio y venta', btn: '+ Registrar venta' },
   celulares: { title: 'Venta de Celulares', sub: 'Compra y venta de equipos', btn: '+ Registrar venta' },
+  cuotalock: { title: 'CuotaLock', sub: 'Créditos, cuotas y bloqueo de equipos', btn: 'Actualizar' },
   reportes: { title: 'Reportes', sub: 'Análisis operativo y financiero', btn: 'Exportar PDF' },
   clientes: { title: 'Clientes', sub: 'Base de datos de clientes', btn: '+ Nuevo cliente' },
   usuarios: { title: 'Usuarios / Técnicos', sub: 'Gestión de accesos y roles', btn: '+ Nuevo usuario' },
@@ -1070,6 +1071,7 @@ function nav(id, el) {
     else if (typeof renderUsersEnhanced === 'function') renderUsersEnhanced();
   }
   if (id === 'dashboard' && typeof updateDashboard === 'function') updateDashboard();
+  if (id === 'cuotalock' && typeof loadCuotaLock === 'function') loadCuotaLock();
 
 }
 
@@ -1095,6 +1097,7 @@ function topAction(id) {
   }
   else if (id === 'celulares') document.getElementById('cel-inv-modelo')?.focus();
   else if (id === 'historial') openModal('historial-add');
+  else if (id === 'cuotalock' && typeof loadCuotaLock === 'function') loadCuotaLock();
 }
 
 function toggleSidebar() {

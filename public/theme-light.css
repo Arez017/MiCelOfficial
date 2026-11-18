@@ -1,0 +1,142 @@
+/* ===== MiCEL — Modo claro ===== */
+html[data-theme="light"] {
+  --bg: #f4f4f5;
+  --surface: #ffffff;
+  --surface-2: #fafafa;
+  --border: #e4e4e7;
+  --text: #18181b;
+  --text-muted: #71717a;
+  --gray-100: #f4f4f5;
+  --gray-200: #e4e4e7;
+  --gray-300: #d4d4d8;
+  --gray-400: #a1a1aa;
+  --gray-500: #71717a;
+  --gray-600: #52525b;
+  --gray-700: #3f3f46;
+  --gray-800: #27272a;
+  --gray-900: #18181b;
+  --primary: #e11d48;
+  --primary-soft: rgba(225, 29, 72, 0.1);
+  color-scheme: light;
+}
+
+html[data-theme="light"] body,
+html[data-theme="light"] .app,
+html[data-theme="light"] .main,
+html[data-theme="light"] .content {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .sidebar {
+  background: #ffffff !important;
+  border-right: 1px solid var(--border) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .sidebar-name,
+html[data-theme="light"] .user-name,
+html[data-theme="light"] .card-title,
+html[data-theme="light"] h1,
+html[data-theme="light"] h2,
+html[data-theme="light"] h3,
+html[data-theme="light"] .page-title {
+  color: var(--gray-900) !important;
+}
+
+html[data-theme="light"] .sidebar-sub,
+html[data-theme="light"] .user-role,
+html[data-theme="light"] .metric-label,
+html[data-theme="light"] .page-sub {
+  color: var(--gray-500) !important;
+}
+
+html[data-theme="light"] .nav-item {
+  color: var(--gray-600) !important;
+}
+html[data-theme="light"] .nav-item:hover {
+  background: var(--gray-100) !important;
+  color: var(--gray-900) !important;
+}
+html[data-theme="light"] .nav-item.active {
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+}
+
+html[data-theme="light"] .card,
+html[data-theme="light"] .panel .card,
+html[data-theme="light"] .modal,
+html[data-theme="light"] .modal-content,
+html[data-theme="light"] .table-wrap {
+  background: #ffffff !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+
+html[data-theme="light"] .table th {
+  background: #fafafa !important;
+  color: var(--gray-600) !important;
+  border-color: var(--border) !important;
+}
+html[data-theme="light"] .table td {
+  border-color: var(--border) !important;
+  color: var(--gray-800) !important;
+}
+html[data-theme="light"] .table tr:hover td {
+  background: #fafafa !important;
+}
+
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea,
+html[data-theme="light"] .input-search {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--gray-900) !important;
+}
+html[data-theme="light"] input::placeholder {
+  color: var(--gray-400) !important;
+}
+html[data-theme="light"] label {
+  color: var(--gray-700) !important;
+}
+
+html[data-theme="light"] .btn-secondary {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--gray-800) !important;
+}
+
+html[data-theme="light"] .code-tag {
+  background: #fef2f2 !important;
+  color: #be123c !important;
+}
+
+html[data-theme="light"] .login-page,
+html[data-theme="light"] #login-screen {
+  background: linear-gradient(180deg, #fff1f2 0%, #f4f4f5 100%) !important;
+}
+
+html[data-theme="light"] .theme-toggle-btn {
+  background: var(--gray-100);
+  border: 1px solid var(--border);
+  color: var(--gray-800);
+}
+
+/* Toggle button siempre visible */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.theme-toggle-btn:hover { opacity: .9; }

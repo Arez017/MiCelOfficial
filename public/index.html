@@ -25,6 +25,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <link rel="stylesheet" href="css/micel-polish.css">
+  <link rel="stylesheet" href="css/theme-light.css">
 </head>
 <body>
 
@@ -198,6 +199,12 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
         Venta de Celulares
       </a>
+      <a class="nav-item" id="nav-cuotalock" onclick="nav('cuotalock',this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        CuotaLock
+      </a>
       <div class="nav-section-label">Administración</div>
       <a class="nav-item" onclick="nav('recibos',this)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -240,6 +247,7 @@
         <span class="topbar-sub" id="topbar-sub">Resumen general del sistema</span>
       </div>
       <div class="topbar-actions">
+        <button type="button" id="btn-theme-toggle" class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Cambiar tema" title="Tema"></button>
         <span id="topbar-rol" class="badge badge-purple" style="font-size:12px"></span>
         <select class="select-branch" id="orders-filter-branch" onchange="filterSucursal(this.value)">
           <option value="">Todas las sucursales</option>
@@ -491,6 +499,61 @@
       </div>
 
       <!-- RECIBOS -->
+      
+      <!-- CUOTALOCK -->
+      <div class="panel" id="panel-cuotalock">
+        <div class="metrics-grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="metric-card">
+            <div class="metric-label">Créditos activos</div>
+            <div class="metric-value" id="cl-activos">—</div>
+            <div class="metric-trend">equipos al día</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Bloqueados</div>
+            <div class="metric-value" id="cl-bloqueados">—</div>
+            <div class="metric-trend">falta de pago</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">App CuotaLock</div>
+            <div class="metric-value" style="font-size:16px">IMEI → API</div>
+            <div class="metric-trend">GET /dispositivo/estado</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Equipos a crédito / estado de bloqueo</h3>
+            <button type="button" class="btn-secondary" onclick="loadCuotaLock()">Actualizar</button>
+          </div>
+          <p style="font-size:13px;color:var(--gray-400);margin:0 0 14px;line-height:1.45">
+            Ventas a crédito vinculadas a la app <strong>CuotaLock</strong>.
+            Bloqueo y desbloqueo según cuotas / acciones del panel.
+          </p>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Cliente</th>
+                  <th>Modelo</th>
+                  <th>IMEI</th>
+                  <th>Estado app</th>
+                  <th>Cuota</th>
+                  <th>Vence</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="cuotalock-body">
+                <tr>
+                  <td colspan="8" style="text-align:center;padding:24px;color:var(--gray-400)">
+                    Abre este módulo para cargar créditos…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div class="panel" id="panel-recibos">
         <div class="card">
           <div class="card-header"><h3 class="card-title">Generar recibo</h3>
@@ -1316,6 +1379,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="js/api.js"></script>
 <script src="js/app.js"></script>
+<script src="js/theme-toggle.js"></script>
+<script src="js/cuotalock-panel.js"></script>
 <script src="js/extensions.js"></script>
 <script>
   // extensions.js pisa las funciones de Amnesis — restauramos las reales de app.js

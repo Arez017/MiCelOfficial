@@ -1,0 +1,289 @@
+/* ===== MiCEL — Modo claro (blanco azulado, menos agresivo) ===== */
+html[data-theme="light"] {
+  --bg: #e8eef6;
+  --surface: #f3f6fb;
+  --surface-2: #eef2f8;
+  --border: #c5d0e0;
+  --text: #1a2332;
+  --text-muted: #5a6a80;
+  --gray-100: #e8eef6;
+  --gray-200: #d5dee9;
+  --gray-300: #c5d0e0;
+  --gray-400: #8b9bb0;
+  --gray-500: #5a6a80;
+  --gray-600: #3d4d63;
+  --gray-700: #2c3a4d;
+  --gray-800: #1a2332;
+  --gray-900: #0f1724;
+  --primary: #e11d48;
+  --primary-soft: rgba(225, 29, 72, 0.12);
+  --ok: #15803d;
+  --warn: #b45309;
+  --danger: #b91c1c;
+  color-scheme: light;
+}
+
+html[data-theme="light"] body,
+html[data-theme="light"] .app,
+html[data-theme="light"] .main,
+html[data-theme="light"] .content {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+/* Sidebar */
+html[data-theme="light"] .sidebar {
+  background: #f0f4fa !important;
+  border-right: 1px solid var(--border) !important;
+  color: var(--text) !important;
+}
+html[data-theme="light"] .sidebar-name,
+html[data-theme="light"] .user-name,
+html[data-theme="light"] .card-title,
+html[data-theme="light"] h1,
+html[data-theme="light"] h2,
+html[data-theme="light"] h3,
+html[data-theme="light"] .page-title,
+html[data-theme="light"] .topbar-title {
+  color: var(--gray-900) !important;
+}
+html[data-theme="light"] .sidebar-sub,
+html[data-theme="light"] .user-role,
+html[data-theme="light"] .metric-label,
+html[data-theme="light"] .page-sub,
+html[data-theme="light"] .topbar-sub {
+  color: var(--gray-500) !important;
+}
+html[data-theme="light"] .nav-item {
+  color: var(--gray-600) !important;
+}
+html[data-theme="light"] .nav-item:hover {
+  background: #e2eaf5 !important;
+  color: var(--gray-900) !important;
+}
+html[data-theme="light"] .nav-item.active {
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+}
+
+/* Cards / tables */
+html[data-theme="light"] .card,
+html[data-theme="light"] .panel .card,
+html[data-theme="light"] .metric-card,
+html[data-theme="light"] .table-wrap {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 36, 0.06);
+}
+html[data-theme="light"] .table th {
+  background: #e4ebf5 !important;
+  color: var(--gray-700) !important;
+  border-color: var(--border) !important;
+  font-weight: 700;
+}
+html[data-theme="light"] .table td {
+  border-color: var(--border) !important;
+  color: var(--gray-800) !important;
+}
+html[data-theme="light"] .table tr:hover td {
+  background: #e8eef6 !important;
+}
+
+/* ===== MODALES (el problema del blanco puro) ===== */
+html[data-theme="light"] .modal,
+html[data-theme="light"] .modal-box,
+html[data-theme="light"] .modal-content,
+html[data-theme="light"] .modal-overlay .modal-box {
+  background: #eef3f9 !important;
+  border: 1px solid var(--border) !important;
+  color: var(--gray-900) !important;
+  box-shadow: 0 12px 40px rgba(15, 23, 36, 0.18);
+}
+html[data-theme="light"] .modal-header,
+html[data-theme="light"] .modal-footer {
+  background: #e4ebf5 !important;
+  border-color: var(--border) !important;
+}
+html[data-theme="light"] .modal-header h3,
+html[data-theme="light"] .modal-box h3 {
+  color: var(--gray-900) !important;
+}
+html[data-theme="light"] .modal-close {
+  color: var(--gray-600) !important;
+}
+
+/* Labels legibles en modal claro */
+html[data-theme="light"] label,
+html[data-theme="light"] .form-group label,
+html[data-theme="light"] .modal label,
+html[data-theme="light"] .modal-box label {
+  color: #2c3a4d !important;
+  font-weight: 600 !important;
+  font-size: 12.5px !important;
+}
+html[data-theme="light"] .form-group small,
+html[data-theme="light"] .modal small,
+html[data-theme="light"] .hint,
+html[data-theme="light"] .field-hint {
+  color: #5a6a80 !important;
+}
+
+/* Inputs */
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea,
+html[data-theme="light"] .input-search,
+html[data-theme="light"] .modal input,
+html[data-theme="light"] .modal select,
+html[data-theme="light"] .modal textarea {
+  background: #f7f9fc !important;
+  border: 1px solid #b8c5d6 !important;
+  color: var(--gray-900) !important;
+}
+html[data-theme="light"] input::placeholder,
+html[data-theme="light"] textarea::placeholder {
+  color: #8b9bb0 !important;
+}
+html[data-theme="light"] input:focus,
+html[data-theme="light"] select:focus,
+html[data-theme="light"] textarea:focus {
+  border-color: #e11d48 !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.15);
+}
+
+/* ===== BOTONES más visibles ===== */
+html[data-theme="light"] .btn-primary,
+html[data-theme="light"] button.btn-primary {
+  background: #e11d48 !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 6px rgba(225, 29, 72, 0.25);
+}
+html[data-theme="light"] .btn-primary:hover {
+  background: #be123c !important;
+}
+
+html[data-theme="light"] .btn-secondary,
+html[data-theme="light"] button.btn-secondary {
+  background: #e4ebf5 !important;
+  border: 1px solid #a8b8cc !important;
+  color: #1a2332 !important;
+  font-weight: 600 !important;
+}
+html[data-theme="light"] .btn-secondary:hover {
+  background: #d5dee9 !important;
+  border-color: #8b9bb0 !important;
+}
+
+html[data-theme="light"] .btn-sm-primary {
+  background: #e11d48 !important;
+  color: #fff !important;
+}
+html[data-theme="light"] .btn-sm-danger {
+  background: #b91c1c !important;
+  color: #fff !important;
+}
+
+/* ===== ALERTAS / TOASTS / ERRORES ===== */
+html[data-theme="light"] .alert,
+html[data-theme="light"] .micel-toast,
+html[data-theme="light"] [class*="toast"] {
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 36, 0.12) !important;
+}
+html[data-theme="light"] .alert-error,
+html[data-theme="light"] .toast-error,
+html[data-theme="light"] .micel-toast.error {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  color: #991b1b !important;
+}
+html[data-theme="light"] .alert-success,
+html[data-theme="light"] .toast-success,
+html[data-theme="light"] .micel-toast.success {
+  background: #f0fdf4 !important;
+  border-color: #86efac !important;
+  color: #166534 !important;
+}
+html[data-theme="light"] .alert-warn,
+html[data-theme="light"] .toast-warn,
+html[data-theme="light"] .micel-toast.warn {
+  background: #fffbeb !important;
+  border-color: #fcd34d !important;
+  color: #92400e !important;
+}
+
+/* Login */
+html[data-theme="light"] .login-page,
+html[data-theme="light"] #login-screen {
+  background: linear-gradient(165deg, #dbe7f5 0%, #e8eef6 45%, #f0f4fa 100%) !important;
+}
+
+/* Code tags */
+html[data-theme="light"] .code-tag {
+  background: #ffe4e6 !important;
+  color: #9f1239 !important;
+}
+
+/* Badges */
+html[data-theme="light"] .badge-green {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+html[data-theme="light"] .badge-red {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+html[data-theme="light"] .badge-purple {
+  background: #ede9fe !important;
+  color: #5b21b6 !important;
+}
+
+/* ===== Botón tema: solo icono ===== */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f4f5;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .15s, border-color .15s, transform .12s;
+}
+.theme-toggle-btn svg {
+  display: block;
+  pointer-events: none;
+}
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.theme-toggle-btn:active {
+  transform: scale(0.94);
+}
+
+html[data-theme="light"] .theme-toggle-btn {
+  background: #e4ebf5;
+  border: 1px solid #a8b8cc;
+  color: #2c3a4d;
+  box-shadow: 0 1px 2px rgba(15, 23, 36, 0.06);
+}
+html[data-theme="light"] .theme-toggle-btn:hover {
+  background: #d5dee9;
+  border-color: #8b9bb0;
+  color: #0f1724;
+}
+
+/* Topbar en claro */
+html[data-theme="light"] .topbar {
+  background: #f0f4fa !important;
+  border-bottom: 1px solid var(--border) !important;
+}
