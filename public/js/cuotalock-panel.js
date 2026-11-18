@@ -429,7 +429,14 @@
     } catch (e) { /* se muestra sin datos extra */ }
     if (!d) d = { cliente: '', modelo: '', device_id: b.device_id };
 
-    if (b.codigo) {
+    if (b.error) {
+      abrirModal(
+        'Pago registrado, pero sin código',
+        `<p>La cuota quedó <b>pagada</b>, pero no se pudo generar el código de desbloqueo:</p>
+         <p style="margin-top:10px;color:var(--danger,#f87171)">${esc(b.error)}</p>
+         <p style="margin-top:10px;font-size:12.5px;color:var(--gray-400)">No vuelvas a pulsar «Marcar pagada» (desmarcaría la cuota). Corrige la configuración y usa «Generar código» en el panel CuotaLock.</p>`
+      );
+    } else if (b.codigo) {
       mostrarCodigo('pago', d, b.codigo, b.vence_en);
     } else if (b.motivo === 'liquidado') {
       abrirModal(
