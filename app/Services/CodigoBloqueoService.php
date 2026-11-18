@@ -6,6 +6,7 @@ use App\Models\Dispositivo;
 use App\Models\PlanPago;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -16,6 +17,12 @@ use RuntimeException;
  *   MMMMMM = 6 dígitos de HMAC-SHA256(secret, "<ID_EQUIPO>:<DDDDD>")
  *
  * El mismo algoritmo está en Policy.kt y en herramientas/generar_codigo.py.
+ *
+ * CORRECCIONES respecto a v2:
+ *  - "Hoy" se calcula en la zona horaria del negocio (America/La_Paz), no en la del
+ *    servidor. Antes, por la tarde-noche en Bolivia el servidor ya estaba en "mañana"
+ *    y podía marcar como vencida una cuota que aún estaba vigente.
+ *  - Se valida el ID del equipo (8 caracteres hexadecimales) y el rango del día.
  */
 class CodigoBloqueoService
 {
@@ -25,13 +32,27 @@ class CodigoBloqueoService
     {
         $secret = (string) config('cuotalock.secret');
         if ($secret === '') {
-            throw new RuntimeException('Falta CUOTALOCK_SECRET en el archivo .env');
+            throw new RuntimeException('Falta CUOTALOCK_SECRET en el archivo .env (y ejecuta php artisan config:clear)');
         }
 
-        $hash = hash_hmac('sha256', strtoupper($deviceId) . ':' . $dias, $secret, true);
+        $id = strtoupper(trim($deviceId));
+        if (! preg_match('/^[0-9A-F]{8}$/', $id)) {
+            throw new InvalidArgumentException('El ID del equipo debe tener 8 caracteres hexadecimales (0-9, A-F).');
+        }
+        if ($dias < 0 || $dias > self::LIBERACION) {
+            throw new InvalidArgumentException("Día fuera de rango: {$dias}");
+        }
+
+        $hash = hash_hmac('sha256', $id . ':' . $dias, $secret, true);
         $n = unpack('N', substr($hash, 0, 4))[1] & 0x7fffffff;
 
         return sprintf('%05d-%06d', $dias, $n % 1000000);
+    }
+
+    /** Fecha y hora actual en la zona horaria del negocio. */
+    public static function hoy(): Carbon
+    {
+        return Carbon::now((string) config('cuotalock.zona_horaria', 'America/La_Paz'));
     }
 
     /** Días transcurridos desde 1970-01-01 para el día calendario de la fecha dada. */
@@ -79,7 +100,7 @@ class CodigoBloqueoService
         }
 
         // Si la próxima cuota ya venció, el equipo debe seguir bloqueado hasta ponerse al día
-        if (self::diasDesdeEpoch($fecha) < self::diasDesdeEpoch(now())) {
+        if (self::diasDesdeEpoch($fecha) < self::diasDesdeEpoch(self::hoy())) {
             return ['codigo' => null, 'motivo' => 'vencido', 'vence_en' => $fecha];
         }
 
