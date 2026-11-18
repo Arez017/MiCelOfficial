@@ -6,7 +6,9 @@ use App\Models\CelularInventario;
 use App\Models\CelularVenta;
 use App\Models\Cuota;
 use App\Models\PlanPago;
+use App\Models\User;
 use App\Services\ClienteFidelidadService;
+use App\Services\CodigoBloqueoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -183,13 +185,35 @@ class CelularVentaController extends Controller
      * PATCH /api/cuotas/{cuota}/pagar
      * Reemplaza marcarCuotaPagada() del MVP — toggle pagada/pendiente.
      */
-    public function marcarCuotaPagada(Cuota $cuota)
+    public function marcarCuotaPagada(Request $request, Cuota $cuota)
     {
         $cuota->pagada = ! $cuota->pagada;
         $cuota->fecha_pago = $cuota->pagada ? now() : null;
         $cuota->save();
 
-        return response()->json($cuota);
+        $respuesta = $cuota->toArray();
+
+        // CuotaLock: al registrar un pago, si el equipo tiene bloqueo activo se emite el código de desbloqueo
+        if ($cuota->pagada) {
+            $dispositivo = $cuota->plan?->venta?->dispositivo;
+            if ($dispositivo && $dispositivo->estado === 'activo') {
+                $usuario = $request->user();
+                $emision = CodigoBloqueoService::emitirPago(
+                    $dispositivo,
+                    $usuario instanceof User ? $usuario->id : null,
+                    $cuota->id,
+                );
+                $respuesta['bloqueo'] = [
+                    'dispositivo_id' => $dispositivo->id,
+                    'device_id' => $dispositivo->device_id,
+                    'codigo' => $emision['codigo']?->codigo,
+                    'vence_en' => $emision['vence_en']?->toDateString(),
+                    'motivo' => $emision['motivo'], // null | liquidado | vencido
+                ];
+            }
+        }
+
+        return response()->json($respuesta);
     }
 
     /**

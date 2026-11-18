@@ -16,6 +16,7 @@ use App\Http\Controllers\SucursalController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\ClienteAuthController;
 use App\Http\Controllers\CuponController;
+use App\Http\Controllers\DispositivoController;
 
 // ===== PÚBLICO =====
 // Login de staff (Admin/Técnico) — todavía no hay token en este punto
@@ -128,6 +129,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/celulares/resumen', [CelularVentaController::class, 'resumen']);
     Route::get('/celulares/estado-cuenta', [CelularVentaController::class, 'estadoCuenta']);
     Route::patch('/cuotas/{cuota}/pagar', [CelularVentaController::class, 'marcarCuotaPagada']);
+
+    // CuotaLock — bloqueo de equipos vendidos a cuotas (solo staff administrador, validado en el controlador)
+    Route::get('/dispositivos', [DispositivoController::class, 'index']);
+    Route::post('/dispositivos', [DispositivoController::class, 'store']);
+    Route::get('/dispositivos/{dispositivo}', [DispositivoController::class, 'show']);
+    Route::post('/dispositivos/{dispositivo}/codigo', [DispositivoController::class, 'codigo']);
+    Route::post('/dispositivos/{dispositivo}/liberar', [DispositivoController::class, 'liberar']);
 
 
 });

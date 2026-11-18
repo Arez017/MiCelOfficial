@@ -49,6 +49,12 @@ class CelularVenta extends Model
         return $this->hasOne(PlanPago::class, 'celular_venta_id');
     }
 
+    /** Equipo con bloqueo CuotaLock vinculado a esta venta (si lo tiene) */
+    public function dispositivo()
+    {
+        return $this->hasOne(Dispositivo::class, 'celular_venta_id');
+    }
+
     /** Ganancia real de esta venta (precio de venta - precio de compra del equipo) */
     public function getGananciaAttribute(): float
     {
