@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Cliente;
 use App\Models\ServiceOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -26,8 +27,12 @@ class ChatbotController extends Controller
             'history.*.content' => ['nullable', 'string'],
         ]);
 
-        $msg = trim($data['message']);
         $cliente = $request->user(); // Cliente autenticado (Sanctum)
+        // Los tokens de staff también pasan auth:sanctum: sin este control, un usuario
+        // del panel con id N vería las órdenes del cliente con id N.
+        abort_unless($cliente instanceof Cliente, 403, 'El asistente es solo para clientes de la app.');
+
+        $msg = trim($data['message']);
 
         // 1) Respuestas rápidas del negocio (siempre funcionan, ideal demo)
         $local = $this->respuestaLocal($msg, $cliente);

@@ -16,6 +16,7 @@ use App\Http\Controllers\SucursalController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\ClienteAuthController;
 use App\Http\Controllers\CuponController;
+use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\DispositivoController;
 
 // ===== PÚBLICO =====
@@ -83,6 +84,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/cliente/perfil', [ClienteAuthController::class, 'updatePerfil']);
     Route::put('/cliente/password', [ClienteAuthController::class, 'changePassword']);
     Route::get('/cliente/mis-ordenes', [ClienteAuthController::class, 'misOrdenes']);
+    // Asistente MiCEL (chatbot) de la app móvil — solo clientes, máx. 20 mensajes por minuto
+    Route::post('/cliente/chat', [ChatbotController::class, 'chat'])->middleware('throttle:20,1');
 
     // Cupones (gestión de staff — solo Admin/SuperAdmin, validado en el controlador)
     Route::get('/cupones', [CuponController::class, 'index']);
