@@ -195,7 +195,7 @@ class AsistenteMicel
                 ]);
 
             if (! $res->successful()) {
-                Log::warning('Chatbot: la IA respondió con error', ['status' => $res->status(), 'body' => Str::limit($res->body(), 500)]);
+                Log::error('Chatbot: la IA respondió con error', ['status' => $res->status(), 'body' => Str::limit($res->body(), 500)]);
 
                 return null;
             }

@@ -17,7 +17,7 @@ return [
     'ia' => [
         'api_key' => env('MICEL_CHAT_API_KEY'),
         'base_url' => env('MICEL_CHAT_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai'),
-        'modelo' => env('MICEL_CHAT_MODEL', 'gemini-2.5-flash'),
+        'modelo' => env('MICEL_CHAT_MODEL', 'gemini-3.8-flash'),
         'timeout' => (int) env('MICEL_CHAT_TIMEOUT', 25),
         'max_tokens' => 450,
     ],
