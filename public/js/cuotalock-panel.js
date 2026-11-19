@@ -34,6 +34,19 @@
 
   const bs = (n) => 'Bs ' + Number(n || 0).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // Clave de vinculación v3: 16 caracteres base32 (A-Z, 2-7); el último es verificador.
+  const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  function normalizarClave(txt) {
+    const c = String(txt || '').replace(/[\s-]+/g, '').toUpperCase();
+    if (!/^[A-Z2-7]{16}$/.test(c)) return null;
+    let suma = 0;
+    for (let i = 0; i < 15; i++) suma += (i + 1) * B32.indexOf(c[i]);
+    return B32[suma % 32] === c[15] ? c : null;
+  }
+  const ERROR_CLAVE = 'La clave de vinculación no es válida: son los 16 caracteres que muestra CuotaLock (letras A-Z y números 2-7).';
+  const inputClave = (id, estilo) =>
+    `<input id="${id}" maxlength="19" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" style="${estilo}">`;
+
   const badge = (estado) => {
     const e = ESTADOS[estado] || ESTADOS.al_dia;
     return `<span class="badge ${e.clase}">${e.texto}</span>`;
@@ -68,8 +81,9 @@
   const DispositivosAPI = {
     list: () => api('/dispositivos'),
     get: (id) => api(`/dispositivos/${id}`),
-    registrar: (celular_venta_id, device_id) =>
-      api('/dispositivos', { method: 'POST', body: JSON.stringify({ celular_venta_id, device_id }) }),
+    registrar: (celular_venta_id, device_id, clave) =>
+      api('/dispositivos', { method: 'POST', body: JSON.stringify({ celular_venta_id, device_id, clave }) }),
+    clave: (id, clave) => api(`/dispositivos/${id}/clave`, { method: 'PUT', body: JSON.stringify({ clave }) }),
     codigo: (id) => api(`/dispositivos/${id}/codigo`, { method: 'POST' }),
     liberar: (id) => api(`/dispositivos/${id}/liberar`, { method: 'POST' }),
   };
@@ -199,9 +213,11 @@
       const acciones =
         d.estado === 'liberado'
           ? ''
-          : d.estado === 'liquidado'
-            ? `<button type="button" class="btn-sm btn-sm-primary" onclick="BloqueoUI.liberar(${d.id})">Liberar</button> `
-            : `<button type="button" class="btn-sm btn-sm-primary" onclick="BloqueoUI.generarCodigo(${d.id})">Generar código</button> `;
+          : !d.tiene_clave
+            ? `<button type="button" class="btn-sm btn-sm-primary" onclick="BloqueoUI.cargarClave(${d.id})">Cargar clave</button> `
+            : d.estado === 'liquidado'
+              ? `<button type="button" class="btn-sm btn-sm-primary" onclick="BloqueoUI.liberar(${d.id})">Liberar</button> `
+              : `<button type="button" class="btn-sm btn-sm-primary" onclick="BloqueoUI.generarCodigo(${d.id})">Generar código</button> `;
       return `<tr>
         <td><code class="code-tag">${esc(d.venta_codigo || d.celular_venta_id)}</code></td>
         <td>${esc(d.cliente)}${d.telefono ? `<br><span style="font-size:11px;color:var(--gray-400)">${esc(d.telefono)}</span>` : ''}</td>
@@ -237,12 +253,14 @@
     }).join('');
     abrirModal(
       'Vincular equipo',
-      `<p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Instala CuotaLock en el celular del cliente, actívalo como Device Owner y escribe aquí el ID de 8 caracteres que muestra la app.</p>
+      `<p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Instala CuotaLock en el celular del cliente, actívalo como Device Owner y escribe aquí el ID de 8 caracteres y la clave de vinculación que muestra la app.</p>
        <label style="font-size:12px;color:var(--gray-400)">Venta a crédito</label>
        <select id="cl-venta-sel" class="select-branch" style="width:100%;margin:6px 0 14px">${opciones}</select>
        <label style="font-size:12px;color:var(--gray-400)">ID del equipo (8 caracteres)</label>
        <input id="cl-id-input" maxlength="8" placeholder="Ej: AC8EAA35" autocomplete="off"
          style="display:block;width:100%;margin:6px 0 16px;text-transform:uppercase;font-family:monospace;font-size:16px;letter-spacing:3px;padding:10px 12px;border:1px solid var(--border,#2a2a2e);border-radius:10px;background:var(--surface-2,#1b1b1e);color:var(--text,inherit)">
+       <label style="font-size:12px;color:var(--gray-400)">Clave de vinculación (16 caracteres, la muestra la app solo hasta activarse)</label>
+       ${inputClave('cl-clave-input', 'display:block;width:100%;margin:6px 0 16px;text-transform:uppercase;font-family:monospace;font-size:16px;letter-spacing:2px;padding:10px 12px;border:1px solid var(--border,#2a2a2e);border-radius:10px;background:var(--surface-2,#1b1b1e);color:var(--text,inherit)')}
        <button class="btn-primary" onclick="BloqueoUI.vincularDesdePanel()">Vincular y generar código</button>`
     );
   }
@@ -257,8 +275,13 @@
       toast('El ID son 8 caracteres (números y letras A-F) que muestra CuotaLock.', 'error');
       return;
     }
+    const clave = normalizarClave((document.getElementById('cl-clave-input') || {}).value);
+    if (!clave) {
+      toast(ERROR_CLAVE, 'error');
+      return;
+    }
     try {
-      const r = await DispositivosAPI.registrar(ventaId, id);
+      const r = await DispositivosAPI.registrar(ventaId, id, clave);
       if (r.codigo) mostrarCodigo('activacion', r.dispositivo, r.codigo, r.vence_en);
       else toast('Equipo vinculado, pero no hay una fecha futura para emitir el código.', 'error');
       refrescar();
@@ -321,6 +344,24 @@
     }
   }
 
+  // Equipos vinculados antes de la v3 (o reinstalados): cargar la clave que muestra la app
+  async function cargarClave(id) {
+    const txt = prompt('Clave de vinculación que muestra CuotaLock en el celular (16 caracteres, XXXX-XXXX-XXXX-XXXX):');
+    if (txt == null) return;
+    const clave = normalizarClave(txt);
+    if (!clave) {
+      toast(ERROR_CLAVE, 'error');
+      return;
+    }
+    try {
+      await DispositivosAPI.clave(id, clave);
+      toast('Clave cargada. Ya puedes generar el código.', 'success');
+      refrescar();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
   async function historial(id) {
     try {
       const d = await DispositivosAPI.get(id);
@@ -371,17 +412,20 @@
       const acciones =
         d.estado === 'liberado'
           ? '<span style="color:#6b7280">Equipo liberado.</span>'
-          : d.estado === 'liquidado'
+          : !d.tiene_clave
+            ? `<button class="btn-sm btn-sm-primary" onclick="BloqueoUI.cargarClave(${d.id})">Cargar clave</button>`
+            : d.estado === 'liquidado'
             ? `<button class="btn-sm btn-sm-primary" onclick="BloqueoUI.liberar(${d.id})">Liberar equipo</button>`
             : `<button class="btn-sm btn-sm-primary" onclick="BloqueoUI.generarCodigo(${d.id})">Generar código</button>`;
       cuerpo = `<div>ID del equipo: <b style="font-family:monospace">${esc(d.device_id)}</b> · Estado: ${chip(d.estado)} · Vence: <b>${fecha(d.vence_en)}</b></div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${acciones}
           <button class="btn-sm" onclick="BloqueoUI.historial(${d.id})">Historial</button></div>`;
     } else {
-      cuerpo = `<div style="margin-bottom:8px">Este equipo aún no está vinculado. Instala CuotaLock en el celular y escribe aquí el <b>ID de 8 caracteres</b> que muestra la app.</div>
-        <div style="display:flex;gap:8px;align-items:center">
+      cuerpo = `<div style="margin-bottom:8px">Este equipo aún no está vinculado. Instala CuotaLock en el celular y escribe aquí el <b>ID de 8 caracteres</b> y la <b>clave de vinculación</b> que muestra la app.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input id="bloqueo-id-input" maxlength="8" placeholder="Ej: AC8EAA35" autocomplete="off"
             style="text-transform:uppercase;font-family:monospace;font-size:14px;letter-spacing:2px;padding:6px 10px;border:1px solid #c7d2fe;border-radius:6px;width:150px;background:#fff;color:#1e1b4b">
+          ${inputClave('bloqueo-clave-input', 'text-transform:uppercase;font-family:monospace;font-size:14px;letter-spacing:1px;padding:6px 10px;border:1px solid #c7d2fe;border-radius:6px;width:210px;background:#fff;color:#1e1b4b')}
           <button class="btn-sm btn-sm-primary" onclick="BloqueoUI.vincular(${Number(ventaId)})">Vincular equipo</button>
         </div>`;
     }
@@ -399,8 +443,13 @@
       toast('El ID son 8 caracteres (números y letras A-F) que muestra CuotaLock.', 'error');
       return;
     }
+    const clave = normalizarClave((document.getElementById('bloqueo-clave-input') || {}).value);
+    if (!clave) {
+      toast(ERROR_CLAVE, 'error');
+      return;
+    }
     try {
-      const r = await DispositivosAPI.registrar(ventaId, id);
+      const r = await DispositivosAPI.registrar(ventaId, id, clave);
       if (r.codigo) mostrarCodigo('activacion', r.dispositivo, r.codigo, r.vence_en);
       else toast('Equipo vinculado, pero no hay una fecha futura para emitir el código.', 'error');
       refrescar();
@@ -495,6 +544,7 @@
     abrirVincular,
     vincularDesdePanel,
     generarCodigo,
+    cargarClave,
     liberar,
     historial,
     vincular,

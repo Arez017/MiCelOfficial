@@ -136,6 +136,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dispositivos/{dispositivo}', [DispositivoController::class, 'show']);
     Route::post('/dispositivos/{dispositivo}/codigo', [DispositivoController::class, 'codigo']);
     Route::post('/dispositivos/{dispositivo}/liberar', [DispositivoController::class, 'liberar']);
+    Route::put('/dispositivos/{dispositivo}/clave', [DispositivoController::class, 'clave']);
 
 
 });
