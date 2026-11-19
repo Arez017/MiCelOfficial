@@ -4,14 +4,13 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Clave secreta de CuotaLock
+    | CuotaLock v3
     |--------------------------------------------------------------------------
-    | Debe ser IDÉNTICA a la que usa la app Android (se pasa a Policy(...)) y
-    | herramientas/generar_codigo.py. Se define en el .env y NO se sube a GitHub.
-    | En el .env ponla entre comillas dobles para que # o espacios no la corten:
-    |   CUOTALOCK_SECRET="tu-clave-larga-y-aleatoria"
+    | Ya no hay una clave global: cada celular genera su propia clave de
+    | vinculación y se guarda cifrada (con APP_KEY) en la tabla dispositivos.
+    | OJO: si cambias APP_KEY, esas claves no se podrán leer y habrá que volver
+    | a cargar la clave de cada equipo. CUOTALOCK_SECRET ya no se usa.
     */
-    'secret' => env('CUOTALOCK_SECRET'),
 
     /*
     | Días de gracia que se suman a la fecha de la próxima cuota impaga

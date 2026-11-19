@@ -83,10 +83,12 @@ class DispositivoController extends Controller
         $data = $request->validate([
             'celular_venta_id' => ['required', 'integer', 'exists:celulares_ventas,id', 'unique:dispositivos,celular_venta_id'],
             'device_id' => ['required', 'string', 'regex:/^[0-9A-F]{8}$/', 'unique:dispositivos,device_id'],
+            'clave' => ['required', 'string', $this->reglaClave()],
         ], [
             'celular_venta_id.unique' => 'Esta venta ya tiene un equipo vinculado.',
             'device_id.regex' => 'El ID del equipo son 8 caracteres (números y letras A-F) que muestra la app CuotaLock.',
             'device_id.unique' => 'Ese ID de equipo ya está vinculado a otra venta.',
+            'clave.required' => 'Escribe la clave de vinculación de 16 caracteres que muestra la app CuotaLock.',
         ]);
 
         $venta = CelularVenta::with('planPago.cuotas')->findOrFail($data['celular_venta_id']);
@@ -98,6 +100,8 @@ class DispositivoController extends Controller
         $dispositivo = Dispositivo::create([
             'celular_venta_id' => $venta->id,
             'device_id' => $data['device_id'],
+            'clave' => CodigoBloqueoService::normalizarClave($data['clave']),
+            'secuencia' => 0,
         ]);
 
         $emision = CodigoBloqueoService::emitirPago($dispositivo, $user->id);
@@ -119,7 +123,11 @@ class DispositivoController extends Controller
             return response()->json(['message' => 'Este equipo ya fue liberado.'], 422);
         }
 
-        $emision = CodigoBloqueoService::emitirPago($dispositivo, $user->id);
+        try {
+            $emision = CodigoBloqueoService::emitirPago($dispositivo, $user->id);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         if ($emision['motivo'] === 'liquidado') {
             return response()->json(['message' => 'Todas las cuotas están pagadas. Usa «Liberar equipo» para entregar el código de liberación.'], 422);
@@ -135,6 +143,38 @@ class DispositivoController extends Controller
         ]);
     }
 
+    /**
+     * PUT /api/dispositivos/{dispositivo}/clave
+     * Carga la clave de vinculación de un equipo vinculado antes de la v3 o que se
+     * reinstaló (la app genera una clave nueva). Reinicia el contador de emisiones.
+     */
+    public function clave(Request $request, Dispositivo $dispositivo): JsonResponse
+    {
+        $this->autorizar($request);
+
+        $data = $request->validate(
+            ['clave' => ['required', 'string', $this->reglaClave()]],
+            ['clave.required' => 'Escribe la clave de vinculación de 16 caracteres que muestra la app CuotaLock.'],
+        );
+
+        $nueva = CodigoBloqueoService::normalizarClave($data['clave']);
+        if ($dispositivo->clave !== $nueva) {
+            $dispositivo->update(['clave' => $nueva, 'secuencia' => 0]);
+        }
+
+        return response()->json(['dispositivo' => $this->presentar($dispositivo->fresh())]);
+    }
+
+    /** Valida formato y dígito verificador de la clave de vinculación. */
+    private function reglaClave(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) {
+            if (! is_string($value) || CodigoBloqueoService::normalizarClave($value) === null) {
+                $fail('La clave de vinculación no es válida: revisa que sean los 16 caracteres que muestra la app (letras A-Z y números 2-7).');
+            }
+        };
+    }
+
     /** POST /api/dispositivos/{dispositivo}/liberar — solo con todas las cuotas pagadas */
     public function liberar(Request $request, Dispositivo $dispositivo): JsonResponse
     {
@@ -145,21 +185,20 @@ class DispositivoController extends Controller
             return response()->json(['message' => 'Aún hay cuotas pendientes: no se puede liberar el equipo.'], 422);
         }
 
-        $codigo = CodigoBloqueoService::liberacion($dispositivo->device_id);
+        try {
+            // Cada liberación es un código nuevo y de un solo uso (antes era siempre el mismo)
+            $registro = CodigoBloqueoService::emitirLiberacion($dispositivo, $user->id);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         if ($dispositivo->estado !== 'liberado') {
-            $dispositivo->codigos()->create([
-                'tipo' => 'liberacion',
-                'vence_en' => null,
-                'codigo' => $codigo,
-                'generado_por' => $user->id,
-            ]);
             $dispositivo->update(['estado' => 'liberado']);
         }
 
         return response()->json([
             'dispositivo' => $this->presentar($dispositivo->fresh()),
-            'codigo' => $codigo,
+            'codigo' => $registro->codigo,
         ]);
     }
 
@@ -196,6 +235,8 @@ class DispositivoController extends Controller
             'id' => $d->id,
             'celular_venta_id' => $d->celular_venta_id,
             'device_id' => $d->device_id,
+            'tiene_clave' => filled($d->clave),
+            'emisiones' => (int) $d->secuencia,
             'estado' => $estado,
             'vence_en' => $d->vence_en?->toDateString(),
             'dias_restantes' => $diasRestantes,

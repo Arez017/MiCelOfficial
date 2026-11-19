@@ -11,6 +11,7 @@ use App\Services\ClienteFidelidadService;
 use App\Services\CodigoBloqueoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class CelularVentaController extends Controller
 {
@@ -197,19 +198,31 @@ class CelularVentaController extends Controller
         if ($cuota->pagada) {
             $dispositivo = $cuota->plan?->venta?->dispositivo;
             if ($dispositivo && $dispositivo->estado === 'activo') {
-                $usuario = $request->user();
-                $emision = CodigoBloqueoService::emitirPago(
-                    $dispositivo,
-                    $usuario instanceof User ? $usuario->id : null,
-                    $cuota->id,
-                );
                 $respuesta['bloqueo'] = [
                     'dispositivo_id' => $dispositivo->id,
                     'device_id' => $dispositivo->device_id,
-                    'codigo' => $emision['codigo']?->codigo,
-                    'vence_en' => $emision['vence_en']?->toDateString(),
-                    'motivo' => $emision['motivo'], // null | liquidado | vencido
+                    'codigo' => null,
+                    'vence_en' => null,
+                    'motivo' => null, // null | liquidado | vencido
+                    'error' => null,
                 ];
+
+                // El pago ya quedó guardado: si el código no se puede emitir, se avisa sin devolver 500.
+                // (Con un 500 el admin cree que falló y vuelve a pulsar, y el toggle DESMARCA la cuota.)
+                try {
+                    $usuario = $request->user();
+                    $emision = CodigoBloqueoService::emitirPago(
+                        $dispositivo,
+                        $usuario instanceof User ? $usuario->id : null,
+                        $cuota->id,
+                    );
+                    $respuesta['bloqueo']['codigo'] = $emision['codigo']?->codigo;
+                    $respuesta['bloqueo']['vence_en'] = $emision['vence_en']?->toDateString();
+                    $respuesta['bloqueo']['motivo'] = $emision['motivo'];
+                } catch (RuntimeException $e) {
+                    report($e);
+                    $respuesta['bloqueo']['error'] = $e->getMessage();
+                }
             }
         }
 
