@@ -975,13 +975,28 @@
 
 <!-- MODAL: NUEVO CLIENTE -->
 <div class="modal-overlay hidden" id="modal-cliente">
-  <div class="modal-box" style="width:420px">
+  <div class="modal-box modal-compact" style="width:400px;max-width:94vw">
     <div class="modal-header"><h3>Nuevo cliente</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
-    <div class="form-grid">
-      <div class="form-group"><label>Nombre completo *</label><input type="text" id="new-cli-name" placeholder="Nombre del cliente"></div>
-      <div class="form-group"><label>Teléfono *</label><input type="text" id="new-cli-phone" placeholder="7XXXXXXX"></div>
-      <div class="form-group" style="grid-column:span 2"><label>Sucursal de atención</label>
-        <select id="new-cli-branch"></select>
+    <div class="form-stack" style="display:flex;flex-direction:column;gap:12px;padding:16px 18px">
+      <div class="form-group" style="margin:0">
+        <label class="lbl-modal" style="color:#0f172a;font-weight:600;display:block;margin-bottom:6px">Nombre completo *</label>
+        <input type="text" id="new-cli-name" placeholder="Nombre del cliente" style="width:100%;box-sizing:border-box">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="lbl-modal" style="color:#0f172a;font-weight:600;display:block;margin-bottom:6px">Teléfono *</label>
+        <div style="display:flex;gap:8px">
+          <select id="new-cli-phone-cc" style="width:118px;flex-shrink:0">
+            <option value="+591">+591 BO</option>
+            <option value="+51">+51 PE</option>
+            <option value="+56">+56 CL</option>
+            <option value="+54">+54 AR</option>
+          </select>
+          <input type="text" id="new-cli-phone" placeholder="71234567" style="flex:1;min-width:0;box-sizing:border-box">
+        </div>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="lbl-modal" style="color:#0f172a;font-weight:600;display:block;margin-bottom:6px">Sucursal de atención</label>
+        <select id="new-cli-branch" style="width:100%;box-sizing:border-box"></select>
       </div>
     </div>
     <div class="modal-footer">
@@ -998,9 +1013,9 @@
     <div class="modal-header"><h3>Editar cliente</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
     <input type="hidden" id="edit-cli-id">
     <div class="form-grid">
-      <div class="form-group"><label>Nombre completo *</label><input type="text" id="edit-cli-name" placeholder="Nombre del cliente"></div>
-      <div class="form-group"><label>Teléfono *</label><input type="text" id="edit-cli-phone" placeholder="7XXXXXXX"></div>
-      <div class="form-group" style="grid-column:span 2"><label>Sucursal de atención</label>
+      <div class="form-group"><label class="lbl-modal" style="color:#0f172a;font-weight:600">Nombre completo *</label><input type="text" id="edit-cli-name" placeholder="Nombre del cliente"></div>
+      <div class="form-group"><label class="lbl-modal" style="color:#0f172a;font-weight:600">Teléfono *</label><input type="text" id="edit-cli-phone" placeholder="7XXXXXXX"></div>
+      <div class="form-group" style="grid-column:span 2"><label class="lbl-modal" style="color:#0f172a;font-weight:600">Sucursal de atención</label>
         <select id="edit-cli-branch"></select>
       </div>
     </div>

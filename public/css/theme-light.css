@@ -1,4 +1,4 @@
-/* ===== MiCEL — Modo claro (blanco azulado, menos agresivo) ===== */
+/* ===== MiCEL — Modo claro (blanco azulado + alto contraste) ===== */
 html[data-theme="light"] {
   --bg: #e8eef6;
   --surface: #f3f6fb;
@@ -9,17 +9,14 @@ html[data-theme="light"] {
   --gray-100: #e8eef6;
   --gray-200: #d5dee9;
   --gray-300: #c5d0e0;
-  --gray-400: #8b9bb0;
-  --gray-500: #5a6a80;
-  --gray-600: #3d4d63;
+  --gray-400: #64748b;
+  --gray-500: #475569;
+  --gray-600: #334155;
   --gray-700: #2c3a4d;
   --gray-800: #1a2332;
   --gray-900: #0f1724;
   --primary: #e11d48;
   --primary-soft: rgba(225, 29, 72, 0.12);
-  --ok: #15803d;
-  --warn: #b45309;
-  --danger: #b91c1c;
   color-scheme: light;
 }
 
@@ -65,8 +62,17 @@ html[data-theme="light"] .nav-item.active {
   background: var(--primary-soft) !important;
   color: var(--primary) !important;
 }
+html[data-theme="light"] .nav-section-label {
+  color: var(--gray-500) !important;
+}
 
-/* Cards / tables */
+/* Topbar */
+html[data-theme="light"] .topbar {
+  background: #f0f4fa !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* Cards / metrics / tables */
 html[data-theme="light"] .card,
 html[data-theme="light"] .panel .card,
 html[data-theme="light"] .metric-card,
@@ -75,6 +81,9 @@ html[data-theme="light"] .table-wrap {
   border-color: var(--border) !important;
   color: var(--text) !important;
   box-shadow: 0 1px 3px rgba(15, 23, 36, 0.06);
+}
+html[data-theme="light"] .metric-value {
+  color: var(--gray-900) !important;
 }
 html[data-theme="light"] .table th {
   background: #e4ebf5 !important;
@@ -90,7 +99,28 @@ html[data-theme="light"] .table tr:hover td {
   background: #e8eef6 !important;
 }
 
-/* ===== MODALES (el problema del blanco puro) ===== */
+/* ===== Pipeline / etapas de orden (arriba) ===== */
+html[data-theme="light"] .pipeline,
+html[data-theme="light"] .order-pipeline,
+html[data-theme="light"] .status-pipeline,
+html[data-theme="light"] [class*="pipeline"] {
+  background: #e4ebf5 !important;
+  border: 1px solid var(--border) !important;
+}
+html[data-theme="light"] .pipeline-step,
+html[data-theme="light"] .status-step,
+html[data-theme="light"] [class*="pipeline"] span,
+html[data-theme="light"] [class*="pipeline"] div {
+  color: var(--gray-700) !important;
+}
+html[data-theme="light"] .pipeline-step.active,
+html[data-theme="light"] .status-step.active {
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+  font-weight: 700 !important;
+}
+
+/* ===== MODALES ===== */
 html[data-theme="light"] .modal,
 html[data-theme="light"] .modal-box,
 html[data-theme="light"] .modal-content,
@@ -113,7 +143,6 @@ html[data-theme="light"] .modal-close {
   color: var(--gray-600) !important;
 }
 
-/* Labels legibles en modal claro */
 html[data-theme="light"] label,
 html[data-theme="light"] .form-group label,
 html[data-theme="light"] .modal label,
@@ -122,14 +151,7 @@ html[data-theme="light"] .modal-box label {
   font-weight: 600 !important;
   font-size: 12.5px !important;
 }
-html[data-theme="light"] .form-group small,
-html[data-theme="light"] .modal small,
-html[data-theme="light"] .hint,
-html[data-theme="light"] .field-hint {
-  color: #5a6a80 !important;
-}
 
-/* Inputs */
 html[data-theme="light"] input,
 html[data-theme="light"] select,
 html[data-theme="light"] textarea,
@@ -153,7 +175,88 @@ html[data-theme="light"] textarea:focus {
   box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.15);
 }
 
-/* ===== BOTONES más visibles ===== */
+/* ===== DROPDOWN estado (Recepción / Diagnóstico / Listo) ===== */
+html[data-theme="light"] .status-menu,
+html[data-theme="light"] .dropdown-menu,
+html[data-theme="light"] .estado-menu,
+html[data-theme="light"] [class*="status-drop"],
+html[data-theme="light"] [class*="dropdown"] {
+  background: #f3f6fb !important;
+  border: 1px solid #a8b8cc !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 36, 0.14) !important;
+  color: var(--gray-900) !important;
+}
+html[data-theme="light"] .status-menu button,
+html[data-theme="light"] .dropdown-menu button,
+html[data-theme="light"] .status-menu a,
+html[data-theme="light"] .dropdown-menu a,
+html[data-theme="light"] .estado-menu button,
+html[data-theme="light"] [class*="status-drop"] button {
+  color: var(--gray-800) !important;
+  background: transparent !important;
+}
+html[data-theme="light"] .status-menu button:hover,
+html[data-theme="light"] .dropdown-menu button:hover,
+html[data-theme="light"] .estado-menu button:hover {
+  background: #e2eaf5 !important;
+  color: var(--gray-900) !important;
+}
+
+/* Badge de estado en tabla */
+html[data-theme="light"] .badge,
+html[data-theme="light"] [class*="badge"] {
+  font-weight: 700 !important;
+}
+html[data-theme="light"] .badge-green,
+html[data-theme="light"] .status-listo {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+html[data-theme="light"] .badge-red,
+html[data-theme="light"] .status-cancel {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+html[data-theme="light"] .badge-yellow,
+html[data-theme="light"] .status-proceso,
+html[data-theme="light"] .status-diagnostico {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+}
+html[data-theme="light"] .badge-blue,
+html[data-theme="light"] .status-recepcion {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+}
+html[data-theme="light"] .badge-purple {
+  background: #ede9fe !important;
+  color: #5b21b6 !important;
+}
+
+/* ===== BOTONES DE ACCIONES EN TABLA (los cuadrados oscuros) ===== */
+html[data-theme="light"] .table .btn-icon,
+html[data-theme="light"] .table button,
+html[data-theme="light"] .table .btn-sm,
+html[data-theme="light"] .acciones button,
+html[data-theme="light"] td button {
+  background: #e4ebf5 !important;
+  border: 1px solid #a8b8cc !important;
+  color: #1a2332 !important;
+}
+html[data-theme="light"] .table .btn-icon:hover,
+html[data-theme="light"] .table button:hover,
+html[data-theme="light"] td button:hover {
+  background: #d5dee9 !important;
+  border-color: #8b9bb0 !important;
+}
+/* Botón Recibo rojo visible */
+html[data-theme="light"] .table .btn-recibo,
+html[data-theme="light"] .table button.btn-primary,
+html[data-theme="light"] td .btn-primary {
+  background: #e11d48 !important;
+  border-color: #be123c !important;
+  color: #ffffff !important;
+}
 html[data-theme="light"] .btn-primary,
 html[data-theme="light"] button.btn-primary {
   background: #e11d48 !important;
@@ -165,7 +268,6 @@ html[data-theme="light"] button.btn-primary {
 html[data-theme="light"] .btn-primary:hover {
   background: #be123c !important;
 }
-
 html[data-theme="light"] .btn-secondary,
 html[data-theme="light"] button.btn-secondary {
   background: #e4ebf5 !important;
@@ -175,51 +277,37 @@ html[data-theme="light"] button.btn-secondary {
 }
 html[data-theme="light"] .btn-secondary:hover {
   background: #d5dee9 !important;
-  border-color: #8b9bb0 !important;
 }
 
-html[data-theme="light"] .btn-sm-primary {
-  background: #e11d48 !important;
-  color: #fff !important;
-}
-html[data-theme="light"] .btn-sm-danger {
-  background: #b91c1c !important;
-  color: #fff !important;
-}
-
-/* ===== ALERTAS / TOASTS / ERRORES ===== */
-html[data-theme="light"] .alert,
+/* ===== ALERTA inventario (esquina) ===== */
+html[data-theme="light"] .stock-alert,
+html[data-theme="light"] .inventory-alert,
+html[data-theme="light"] .alerta-inventario,
+html[data-theme="light"] [class*="alert"][class*="invent"],
 html[data-theme="light"] .micel-toast,
-html[data-theme="light"] [class*="toast"] {
-  border: 1px solid var(--border) !important;
-  box-shadow: 0 4px 16px rgba(15, 23, 36, 0.12) !important;
+html[data-theme="light"] .toast {
+  background: #fff7ed !important;
+  border: 1px solid #fdba74 !important;
+  color: #9a3412 !important;
+  box-shadow: 0 6px 20px rgba(15, 23, 36, 0.12) !important;
 }
-html[data-theme="light"] .alert-error,
-html[data-theme="light"] .toast-error,
-html[data-theme="light"] .micel-toast.error {
-  background: #fef2f2 !important;
-  border-color: #fca5a5 !important;
-  color: #991b1b !important;
-}
-html[data-theme="light"] .alert-success,
-html[data-theme="light"] .toast-success,
-html[data-theme="light"] .micel-toast.success {
+html[data-theme="light"] .micel-toast.success,
+html[data-theme="light"] .toast-success {
   background: #f0fdf4 !important;
   border-color: #86efac !important;
   color: #166534 !important;
 }
-html[data-theme="light"] .alert-warn,
-html[data-theme="light"] .toast-warn,
-html[data-theme="light"] .micel-toast.warn {
+html[data-theme="light"] .micel-toast.error,
+html[data-theme="light"] .toast-error {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  color: #991b1b !important;
+}
+html[data-theme="light"] .micel-toast.warn,
+html[data-theme="light"] .toast-warn {
   background: #fffbeb !important;
   border-color: #fcd34d !important;
   color: #92400e !important;
-}
-
-/* Login */
-html[data-theme="light"] .login-page,
-html[data-theme="light"] #login-screen {
-  background: linear-gradient(165deg, #dbe7f5 0%, #e8eef6 45%, #f0f4fa 100%) !important;
 }
 
 /* Code tags */
@@ -228,21 +316,13 @@ html[data-theme="light"] .code-tag {
   color: #9f1239 !important;
 }
 
-/* Badges */
-html[data-theme="light"] .badge-green {
-  background: #dcfce7 !important;
-  color: #166534 !important;
-}
-html[data-theme="light"] .badge-red {
-  background: #fee2e2 !important;
-  color: #991b1b !important;
-}
-html[data-theme="light"] .badge-purple {
-  background: #ede9fe !important;
-  color: #5b21b6 !important;
+/* Login */
+html[data-theme="light"] .login-page,
+html[data-theme="light"] #login-screen {
+  background: linear-gradient(165deg, #dbe7f5 0%, #e8eef6 45%, #f0f4fa 100%) !important;
 }
 
-/* ===== Botón tema: solo icono ===== */
+/* ===== Botón tema icono ===== */
 .theme-toggle-btn {
   display: inline-flex;
   align-items: center;
@@ -258,17 +338,12 @@ html[data-theme="light"] .badge-purple {
   flex-shrink: 0;
   transition: background .15s, border-color .15s, transform .12s;
 }
-.theme-toggle-btn svg {
-  display: block;
-  pointer-events: none;
-}
+.theme-toggle-btn svg { display: block; pointer-events: none; }
 .theme-toggle-btn:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.2);
 }
-.theme-toggle-btn:active {
-  transform: scale(0.94);
-}
+.theme-toggle-btn:active { transform: scale(0.94); }
 
 html[data-theme="light"] .theme-toggle-btn {
   background: #e4ebf5;
@@ -282,8 +357,413 @@ html[data-theme="light"] .theme-toggle-btn:hover {
   color: #0f1724;
 }
 
-/* Topbar en claro */
-html[data-theme="light"] .topbar {
-  background: #f0f4fa !important;
-  border-bottom: 1px solid var(--border) !important;
+/* Select sucursal topbar */
+html[data-theme="light"] .select-branch,
+html[data-theme="light"] #orders-filter-branch {
+  background: #f7f9fc !important;
+  border: 1px solid #b8c5d6 !important;
+  color: var(--gray-900) !important;
+}
+
+/* Sidebar footer / logout */
+html[data-theme="light"] .btn-logout {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  border: 1px solid #fca5a5 !important;
+}
+html[data-theme="light"] .sidebar-footer {
+  border-top: 1px solid var(--border) !important;
+}
+
+
+/* ===== Tonos oro / verde (sin amarillo neón) ===== */
+
+/* Pipeline: etapas suaves */
+html[data-theme="light"] .pipe-step,
+html[data-theme="light"] .pipeline-step,
+html[data-theme="light"] .status-bar > *,
+html[data-theme="light"] [class*="pipeline"] > * {
+  border-color: #c5d0e0 !important;
+}
+/* Recepción / Diagnóstico — oro suave */
+html[data-theme="light"] .pipe-recepcion,
+html[data-theme="light"] .pipeline-step:nth-child(1),
+html[data-theme="light"] .status-bar > :nth-child(1) {
+  background: linear-gradient(180deg, #faf3e0 0%, #f3e6c4 100%) !important;
+  color: #7a5c14 !important;
+  font-weight: 700 !important;
+}
+html[data-theme="light"] .pipe-diagnostico,
+html[data-theme="light"] .pipeline-step:nth-child(2),
+html[data-theme="light"] .status-bar > :nth-child(2) {
+  background: linear-gradient(180deg, #f7edd4 0%, #ead7a8 100%) !important;
+  color: #6b5010 !important;
+  font-weight: 700 !important;
+}
+/* Reparación — rosa suave (se mantiene) */
+html[data-theme="light"] .pipe-reparacion,
+html[data-theme="light"] .pipeline-step:nth-child(3),
+html[data-theme="light"] .status-bar > :nth-child(3) {
+  background: linear-gradient(180deg, #fde8ec 0%, #f8d0d8 100%) !important;
+  color: #9f1239 !important;
+  font-weight: 700 !important;
+}
+
+/* Textos verdes/amarillos del dashboard (métricas y links) */
+html[data-theme="light"] .metric-trend.positive,
+html[data-theme="light"] .metric-trend,
+html[data-theme="light"] .trend-up,
+html[data-theme="light"] a.metric-link,
+html[data-theme="light"] .metric-card .metric-trend {
+  color: #1d6b3a !important; /* verde oscuro elegante */
+}
+html[data-theme="light"] .metric-trend.negative {
+  color: #b91c1c !important;
+}
+
+/* Banner stock crítico — ámbar/oro en vez de amarillo limón */
+html[data-theme="light"] .banner-warn,
+html[data-theme="light"] .alert-stock,
+html[data-theme="light"] .stock-banner,
+html[data-theme="light"] [class*="stock-crit"],
+html[data-theme="light"] .dash-alert-warn {
+  background: #faf0d8 !important;
+  border: 1px solid #d4a84b !important;
+  color: #7a5c14 !important;
+}
+
+/* Banner “listos para entrega” — rosa suave */
+html[data-theme="light"] .banner-info,
+html[data-theme="light"] .dash-alert-ready,
+html[data-theme="light"] [class*="listos"] {
+  background: #fde8ec !important;
+  border: 1px solid #f0a8b8 !important;
+  color: #9f1239 !important;
+}
+
+/* Badge estado Listo — verde bosque */
+html[data-theme="light"] .badge-green,
+html[data-theme="light"] .status-listo,
+html[data-theme="light"] .estado-listo {
+  background: #d8f0e0 !important;
+  color: #14532d !important;
+  border: 1px solid #86c9a0 !important;
+}
+
+/* Badge Diagnóstico — oro */
+html[data-theme="light"] .badge-yellow,
+html[data-theme="light"] .status-diagnostico,
+html[data-theme="light"] .estado-diagnostico {
+  background: #f5e6c0 !important;
+  color: #6b5010 !important;
+  border: 1px solid #d4a84b !important;
+}
+
+/* Toast alerta inventario — panel oscuro se queda; texto más legible si aplica claro */
+html[data-theme="light"] .stock-alert,
+html[data-theme="light"] .inventory-alert,
+html[data-theme="light"] .alerta-inventario {
+  background: #2a2118 !important;
+  border: 1px solid #d4a84b !important;
+  color: #f5e6c0 !important;
+}
+
+
+/* Forzar: cualquier fondo amarillo/lima chillón → oro */
+html[data-theme="light"] [style*="background"][style*="#ff"],
+html[data-theme="light"] [style*="background"][style*="yellow"],
+html[data-theme="light"] [style*="background"][style*="#fef"],
+html[data-theme="light"] [style*="background"][style*="#fef08a"],
+html[data-theme="light"] [style*="background"][style*="#fde047"],
+html[data-theme="light"] [style*="background"][style*="#eab308"],
+html[data-theme="light"] [style*="background"][style*="#facc15"],
+html[data-theme="light"] [style*="background"][style*="#fef9c3"],
+html[data-theme="light"] [style*="background"][style*="#fefce8"] {
+  /* no tocamos todos los style* para no romper primarios */
+}
+
+/* Pipeline bar genérica (divs en fila arriba de órdenes) */
+html[data-theme="light"] .orders-pipeline > div:nth-child(1),
+html[data-theme="light"] .pipeline-bar > div:nth-child(1),
+html[data-theme="light"] #orders-pipeline > div:nth-child(1),
+html[data-theme="light"] .status-pipeline > div:nth-child(1) {
+  background: #f3e6c4 !important;
+  color: #7a5c14 !important;
+}
+html[data-theme="light"] .orders-pipeline > div:nth-child(2),
+html[data-theme="light"] .pipeline-bar > div:nth-child(2),
+html[data-theme="light"] #orders-pipeline > div:nth-child(2),
+html[data-theme="light"] .status-pipeline > div:nth-child(2) {
+  background: #ead7a8 !important;
+  color: #6b5010 !important;
+}
+html[data-theme="light"] .orders-pipeline > div:nth-child(3),
+html[data-theme="light"] .pipeline-bar > div:nth-child(3),
+html[data-theme="light"] #orders-pipeline > div:nth-child(3),
+html[data-theme="light"] .status-pipeline > div:nth-child(3) {
+  background: #f8d0d8 !important;
+  color: #9f1239 !important;
+}
+
+/* Texto chartreuse / lima del dashboard */
+html[data-theme="light"] .metric-trend,
+html[data-theme="light"] [style*="color: #"] {
+  /* se deja; el color positivo se fuerza abajo */
+}
+html[data-theme="light"] .metric-card small,
+html[data-theme="light"] .metric-card .metric-trend,
+html[data-theme="light"] .metric-card a {
+  color: #1d6b3a !important;
+}
+html[data-theme="light"] .metric-card .metric-trend[style],
+html[data-theme="light"] .metric-card a[style] {
+  color: #1d6b3a !important;
+}
+
+
+/* ===== Modales: labels SIEMPRE legibles ===== */
+html[data-theme="light"] .modal label,
+html[data-theme="light"] .modal-box label,
+html[data-theme="light"] .modal-content label,
+html[data-theme="light"] .form-group label,
+html[data-theme="light"] .modal .form-group > span,
+html[data-theme="light"] .modal-box .form-group > span,
+html[data-theme="light"] .modal small,
+html[data-theme="light"] .modal-box small,
+html[data-theme="light"] .modal .hint,
+html[data-theme="light"] .modal-box .hint,
+html[data-theme="light"] .modal [class*="label"],
+html[data-theme="light"] .modal-box [class*="label"] {
+  color: #1e293b !important;
+  font-weight: 650 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"] .modal h3,
+html[data-theme="light"] .modal-box h3,
+html[data-theme="light"] .modal-header h3,
+html[data-theme="light"] .modal .modal-title {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+/* Placeholders más suaves pero visibles */
+html[data-theme="light"] .modal input::placeholder,
+html[data-theme="light"] .modal-box input::placeholder,
+html[data-theme="light"] .modal textarea::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+/* Texto auxiliar tipo (opcional) */
+html[data-theme="light"] .modal .optional,
+html[data-theme="light"] .modal-box .optional,
+html[data-theme="light"] .modal label span,
+html[data-theme="light"] .modal-box label span {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+/* Fondo modal un poco más definido */
+html[data-theme="light"] .modal-box,
+html[data-theme="light"] .modal-content {
+  background: #f1f5f9 !important;
+  border: 1px solid #94a3b8 !important;
+}
+
+html[data-theme="light"] .modal-header {
+  background: #e2e8f0 !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+html[data-theme="light"] .modal-footer {
+  background: #e2e8f0 !important;
+  border-top: 1px solid #cbd5e1 !important;
+}
+
+
+/* ===== Pipeline .pstep (Recepción / Diagnóstico…) — oro, no lima ===== */
+html[data-theme="light"] .progress-bar-steps {
+  background: #e2e8f0 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px;
+  overflow: hidden;
+}
+html[data-theme="light"] .pstep {
+  background: #e2e8f0 !important;
+  color: #475569 !important;
+  font-weight: 600 !important;
+  border-color: #cbd5e1 !important;
+}
+html[data-theme="light"] .pstep.done {
+  background: linear-gradient(180deg, #f5e6c0 0%, #e6d09a 100%) !important;
+  color: #6b5010 !important;
+  font-weight: 700 !important;
+}
+html[data-theme="light"] .pstep.current {
+  background: linear-gradient(180deg, #fde8ec 0%, #f5c2cc 100%) !important;
+  color: #9f1239 !important;
+  font-weight: 700 !important;
+}
+
+/* Labels de formularios / modales (var --gray-400 ya más oscuro) */
+html[data-theme="light"] .form-group label,
+html[data-theme="light"] .modal-box .form-group label,
+html[data-theme="light"] .modal-overlay label {
+  color: #0f172a !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+}
+html[data-theme="light"] .form-group label span,
+html[data-theme="light"] .modal-box label span {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+
+/* ===== BUGFIX final: modales legibles + sin borde rojo ===== */
+
+/* Quitar aros/rojos raros en cualquier modal */
+html[data-theme="light"] .modal-box,
+html[data-theme="light"] .modal-content,
+html[data-theme="light"] .modal-overlay > div,
+.modal-box,
+.modal-content,
+.modal-overlay > div {
+  outline: none !important;
+}
+.modal-box:focus,
+.modal-box:focus-visible,
+.modal-content:focus,
+.modal-overlay > div:focus {
+  outline: none !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,.35) !important;
+}
+
+/* Si el rojo viene de box-shadow primary */
+html[data-theme="light"] .modal-box,
+html[data-theme="light"] .modal-overlay > .modal-box {
+  box-shadow: 0 16px 48px rgba(15, 23, 36, 0.22) !important;
+  border: 1px solid #94a3b8 !important;
+}
+
+/* Modo oscuro: modal CuotaLock sin glow rojo */
+html[data-theme="dark"] .modal-box,
+html:not([data-theme="light"]) .modal-box {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  outline: none !important;
+}
+
+/* Labels: forzar color aunque el CSS base diga gray-100 / blanco */
+html[data-theme="light"] .modal-overlay label,
+html[data-theme="light"] .modal-box label,
+html[data-theme="light"] .modal-content label,
+html[data-theme="light"] .form-grid label,
+html[data-theme="light"] .form-group > label,
+html[data-theme="light"] #modal-cliente label,
+html[data-theme="light"] #modal-editar-cliente label,
+html[data-theme="light"] #modal-cliente .form-group label,
+html[data-theme="light"] #modal-editar-cliente .form-group label {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+html[data-theme="light"] .modal-overlay h3,
+html[data-theme="light"] .modal-box h3,
+html[data-theme="light"] .modal-header h3,
+html[data-theme="light"] #modal-cliente h3 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  opacity: 1 !important;
+}
+
+/* Header del modal no debe recortar el título */
+html[data-theme="light"] .modal-header {
+  overflow: visible !important;
+  padding: 14px 18px !important;
+}
+html[data-theme="light"] .modal-header h3 {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  max-width: none !important;
+}
+
+/* Inputs del modal cliente legibles */
+html[data-theme="light"] #modal-cliente input,
+html[data-theme="light"] #modal-cliente select,
+html[data-theme="light"] #modal-editar-cliente input,
+html[data-theme="light"] #modal-editar-cliente select {
+  color: #0f172a !important;
+  background: #ffffff !important;
+  border: 1px solid #94a3b8 !important;
+}
+
+
+/* ===== Inputs de modal SIEMPRE legibles (oscuro y claro) ===== */
+.modal-box input,
+.modal-box select,
+.modal-box textarea,
+.modal-content input,
+.modal-content select,
+.modal-overlay input,
+.modal-overlay select {
+  color: inherit;
+}
+
+/* Modo oscuro: texto claro sobre input oscuro */
+html:not([data-theme="light"]) .modal-box input,
+html:not([data-theme="light"]) .modal-box select,
+html:not([data-theme="light"]) .modal-box textarea,
+html[data-theme="dark"] .modal-box input,
+html[data-theme="dark"] .modal-box select,
+html[data-theme="dark"] .modal-box textarea {
+  background: #1e1e24 !important;
+  color: #f4f4f5 !important;
+  border: 1px solid #3f3f46 !important;
+  -webkit-text-fill-color: #f4f4f5 !important;
+  caret-color: #f4f4f5 !important;
+}
+html:not([data-theme="light"]) .modal-box input::placeholder,
+html[data-theme="dark"] .modal-box input::placeholder {
+  color: #a1a1aa !important;
+  -webkit-text-fill-color: #a1a1aa !important;
+  opacity: 1 !important;
+}
+
+/* Modo claro */
+html[data-theme="light"] .modal-box input,
+html[data-theme="light"] .modal-box select,
+html[data-theme="light"] .modal-box textarea {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #94a3b8 !important;
+  -webkit-text-fill-color: #0f172a !important;
+  caret-color: #0f172a !important;
+}
+html[data-theme="light"] .modal-box input::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+}
+
+/* Modal cliente compacto: sin huecos de grid */
+#modal-cliente .form-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: 16px 18px !important;
+}
+#modal-cliente .form-group {
+  grid-column: auto !important;
+  margin: 0 !important;
+}
+#modal-cliente.modal-box,
+#modal-cliente .modal-box,
+.modal-compact {
+  width: 400px !important;
+  max-width: 94vw !important;
 }
