@@ -15,6 +15,11 @@ it('detecta groserías aunque las escriban trampeadas', function (string $texto)
     'la concha de tu madre',
     'hdp',
     'mierrda',
+    'chinga tú madre v:',
+    'perra',
+    'me vale verga bro',
+    'eres un hijueputa',
+    'vete al carajo',
 ]);
 
 it('detecta contenido obsceno', function (string $texto) {
@@ -41,4 +46,6 @@ it('no bloquea mensajes normales con palabras parecidas', function (string $text
     'vete a la sucursal de la ceja',
     'tengo 3 coins',
     'el pack de accesorios',
+    'mi perro mordió el cargador',
+    'el celular es de mi mamá',
 ]);
