@@ -21,7 +21,7 @@ function clienteChat(): Cliente
 
 function iaResponde(string $texto): void
 {
-    config(['chatbot.ia.api_key' => 'clave-de-prueba', 'chatbot.ia.base_url' => 'https://ia.test/v1']);
+    config(['chatbot.ia.api_key' => 'clave-de-prueba', 'chatbot.ia.base_url' => 'https://ia.test/v1', 'chatbot.ia.reasoning_effort' => 'low']);
     Http::fake(['ia.test/*' => Http::response(['choices' => [['message' => ['content' => $texto]]]])]);
 }
 

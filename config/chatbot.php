@@ -17,7 +17,7 @@ return [
     'ia' => [
         'api_key' => env('MICEL_CHAT_API_KEY'),
         'base_url' => env('MICEL_CHAT_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai'),
-        'modelo' => env('MICEL_CHAT_MODEL', 'gemini-3.8-flash'),
+        'modelo' => env('MICEL_CHAT_MODEL', 'gemini-3.5-flash-lite'),
         // Menor que el límite de PHP (max_execution_time = 30 s): si la IA tarda más,
         // se corta y responde el plan B en vez de romper la petición con un error 500.
         'timeout' => (int) env('MICEL_CHAT_TIMEOUT', 18),
@@ -27,7 +27,7 @@ return [
         'max_tokens' => (int) env('MICEL_CHAT_MAX_TOKENS', 2048),
         // low = piensa poco y responde rápido (Gemini/OpenAI). Déjalo vacío para
         // proveedores que no lo aceptan (por ejemplo Groq con Llama).
-        'reasoning_effort' => env('MICEL_CHAT_REASONING', 'low'),
+        'reasoning_effort' => env('MICEL_CHAT_REASONING'),
     ],
 
     'negocio' => [
