@@ -194,7 +194,8 @@ class AsistenteMicel
         }
 
         try {
-            $res = Http::timeout((int) config('chatbot.ia.timeout', 30))
+            $res = Http::connectTimeout(5)
+                ->timeout((int) config('chatbot.ia.timeout', 18))
                 ->withToken($apiKey)
                 ->acceptJson()
                 ->post(rtrim((string) config('chatbot.ia.base_url'), '/').'/chat/completions', $cuerpo);

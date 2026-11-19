@@ -26,6 +26,9 @@ class ChatbotController extends Controller
             'history' => ['nullable', 'array'],
         ]);
 
+        // Margen para esperar a la IA sin chocar con el límite de 30 s de PHP
+        @set_time_limit(60);
+
         return response()->json($asistente->responder($cliente, $data['message']));
     }
 }
