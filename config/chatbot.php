@@ -18,8 +18,14 @@ return [
         'api_key' => env('MICEL_CHAT_API_KEY'),
         'base_url' => env('MICEL_CHAT_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai'),
         'modelo' => env('MICEL_CHAT_MODEL', 'gemini-3.8-flash'),
-        'timeout' => (int) env('MICEL_CHAT_TIMEOUT', 25),
-        'max_tokens' => 450,
+        'timeout' => (int) env('MICEL_CHAT_TIMEOUT', 30),
+        // Los modelos Gemini 3 "piensan" antes de responder y ese pensamiento también
+        // gasta tokens: con un límite bajo la respuesta llega vacía. Las respuestas
+        // igual salen cortas porque las instrucciones piden máximo 6 líneas.
+        'max_tokens' => (int) env('MICEL_CHAT_MAX_TOKENS', 2048),
+        // low = piensa poco y responde rápido (Gemini/OpenAI). Déjalo vacío para
+        // proveedores que no lo aceptan (por ejemplo Groq con Llama).
+        'reasoning_effort' => env('MICEL_CHAT_REASONING', 'low'),
     ],
 
     'negocio' => [

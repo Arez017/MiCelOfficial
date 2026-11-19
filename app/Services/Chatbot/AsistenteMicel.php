@@ -183,16 +183,21 @@ class AsistenteMicel
             [['role' => 'user', 'content' => $mensaje]],
         );
 
+        $cuerpo = [
+            'model' => config('chatbot.ia.modelo'),
+            'messages' => $mensajes,
+            'temperature' => 0.6,
+            'max_tokens' => (int) config('chatbot.ia.max_tokens', 2048),
+        ];
+        if (filled(config('chatbot.ia.reasoning_effort'))) {
+            $cuerpo['reasoning_effort'] = config('chatbot.ia.reasoning_effort');
+        }
+
         try {
-            $res = Http::timeout((int) config('chatbot.ia.timeout', 25))
+            $res = Http::timeout((int) config('chatbot.ia.timeout', 30))
                 ->withToken($apiKey)
                 ->acceptJson()
-                ->post(rtrim((string) config('chatbot.ia.base_url'), '/').'/chat/completions', [
-                    'model' => config('chatbot.ia.modelo'),
-                    'messages' => $mensajes,
-                    'temperature' => 0.6,
-                    'max_tokens' => (int) config('chatbot.ia.max_tokens', 450),
-                ]);
+                ->post(rtrim((string) config('chatbot.ia.base_url'), '/').'/chat/completions', $cuerpo);
 
             if (! $res->successful()) {
                 Log::error('Chatbot: la IA respondió con error', ['status' => $res->status(), 'body' => Str::limit($res->body(), 500)]);
@@ -201,8 +206,16 @@ class AsistenteMicel
             }
 
             $texto = trim((string) $res->json('choices.0.message.content'));
+            if ($texto === '') {
+                Log::error('Chatbot: la IA respondió vacío', [
+                    'finish_reason' => $res->json('choices.0.finish_reason'),
+                    'body' => Str::limit($res->body(), 500),
+                ]);
 
-            return $texto === '' ? null : $texto;
+                return null;
+            }
+
+            return $texto;
         } catch (\Throwable $e) {
             report($e);
 
