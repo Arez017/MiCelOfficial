@@ -17,6 +17,12 @@ services:
       DB_DATABASE: micel
       DB_USERNAME: micel
       DB_PASSWORD: secret
+      # La caché de Docker va dentro del contenedor, no en bootstrap/cache:
+      # esa carpeta se comparte con Herd y cada uno pisaría la configuración del otro.
+      APP_CONFIG_CACHE: /tmp/laravel/config.php
+      APP_ROUTES_CACHE: /tmp/laravel/routes-v7.php
+      APP_EVENTS_CACHE: /tmp/laravel/events.php
+      VIEW_COMPILED_PATH: /tmp/laravel/views
     depends_on:
       db:
         condition: service_healthy

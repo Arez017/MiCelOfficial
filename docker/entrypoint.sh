@@ -12,6 +12,10 @@ done
 echo "→ PostgreSQL listo"
 
 # Solo correr migraciones y cache si existe artisan
+# Carpeta propia para la caché de Laravel en Docker (ver docker-compose.yml)
+mkdir -p /tmp/laravel/views
+chown -R www-data:www-data /tmp/laravel 2>/dev/null || true
+
 if [ -f /var/www/html/artisan ]; then
   echo "→ Corriendo migraciones..."
   php artisan migrate --force || true

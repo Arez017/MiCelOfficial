@@ -30,7 +30,7 @@ http://localhost:8080
 5. Para entrar al contenedor y correr comandos Artisan:
 
 ```bash
-docker compose exec app bash
+docker compose exec app sh
 # o directamente:
 docker compose exec app php artisan migrate
 docker compose exec app php artisan db:seed
@@ -47,6 +47,7 @@ docker compose down
 - La base de datos Docker usa el puerto **5433** en tu máquina (para no chocar con Herd).
 - Dentro de Docker el host de la base es `db` (no `127.0.0.1`).
 - Puedes seguir usando Herd normalmente. Docker es solo otra forma de levantar el mismo proyecto.
+- Docker guarda su caché de configuración y rutas en `/tmp/laravel` dentro del contenedor, no en `bootstrap/cache`, para no pisar la de Herd. Si Herd muestra `could not translate host name "db"`, borra la caché vieja con `php artisan config:clear` en Herd.
 - La primera vez puede tardar un poco porque descarga las imágenes y construye el contenedor.
 
 ## Variables de entorno
