@@ -311,7 +311,7 @@
       titulos[tipo] || 'Código',
       `<div style="text-align:center">
         <div style="font-size:12px;color:var(--gray-400)">${esc(d.cliente)} · ${esc(d.modelo || '')} · ID <b style="font-family:monospace">${esc(d.device_id)}</b></div>
-        <div style="font-family:monospace;font-size:34px;font-weight:800;letter-spacing:3px;margin:14px 0;padding:14px;border:2px dashed var(--primary,#ff1440);border-radius:12px;background:var(--surface-2,#1b1b1e)">${esc(codigo)}</div>
+        <div style="font-family:monospace;font-size:34px;font-weight:800;letter-spacing:3px;margin:14px 0;padding:14px;border:2px dashed var(--primary,#ff1440);border-radius:12px;background:var(--surface-2,#1b1b1e);color:var(--gray-900,#fff);user-select:all">${esc(codigo)}</div>
         <div style="font-size:12.5px;color:var(--gray-400)">${tipo === 'liberacion' ? 'Libera el equipo: se quitan todas las restricciones.' : `Nuevo vencimiento del equipo: <b style="color:var(--text,inherit)">${fecha(vence)}</b>`}</div>
         <textarea readonly rows="4" style="width:100%;margin-top:14px;padding:10px;border:1px solid var(--border,#2a2a2e);border-radius:10px;font-size:12.5px;resize:none;background:var(--surface-2,#1b1b1e);color:var(--text,inherit)">${esc(msg)}</textarea>
         <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap">
