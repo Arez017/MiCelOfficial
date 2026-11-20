@@ -41,12 +41,16 @@ class ModeracionChat
         'mongolica', 'zorra', 'zorras', 'bastardo', 'bastarda', 'mamon',
         'mamona', 'lameculos', 'culiao', 'culiado', 'culiada', 'mrd', 'vrg', 'pndj', 'mierdero',
         'imbesil', 'estupidez', 'gilipollas', 'subnormal', 'baboso', 'babosa',
+        'chinga', 'chingas', 'chingues', 'chingue', 'perra', 'perras', 'jodido', 'jodida',
+        'hijueputa', 'hijoputa', 'malnacido', 'malnacida', 'cagon', 'cagona', 'mierdoso',
+        'mierdosa', 'gonorrea', 'mrda', 'vrga', 'ptmr',
     ];
 
     /** Frases (sobre el texto normalizado, con espacios simples). */
     private const FRASES_GROSERAS = [
         'concha de tu', 'concha tu madre', 'chupame', 'chupa mi', 'me vale verga',
-        'a la mierda', 'hijo de perra',
+        'a la mierda', 'hijo de perra', 'chinga tu madre', 'tu puta madre', 'hijo de puta',
+        'hija de puta', 'vete a la mierda', 'vete al carajo',
     ];
 
     private const OBSCENIDADES = [

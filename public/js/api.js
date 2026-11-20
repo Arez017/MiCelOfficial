@@ -3,7 +3,7 @@
 // ==========================================
 
 // ⚠️ CAMBIA ESTA URL según tu entorno
-const API_BASE = 'http://micel.test/api';
+const API_BASE = window.location.origin + '/api';
 // const API_BASE = 'http://micelofficial.test/api';
 // const API_BASE = 'https://tu-dominio.com/api';
 
