@@ -68,7 +68,7 @@ class ReciboController extends Controller
         $data['fecha'] = $ahora->toDateString();     // ej. 2026-10-25
 
         if (! empty($data['orden_id'])) {
-            ServiceOrder::where('id', $data['orden_id'])->update(['status' => 'listo']);
+            ServiceOrder::find($data['orden_id'])?->update(['status' => 'listo']);
         }
 
         $recibo = Recibo::create($data);

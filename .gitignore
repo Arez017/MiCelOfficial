@@ -26,3 +26,8 @@ Thumbs.db
 # Respaldos de base de datos: nunca al repo
 *.sql
 *.dump
+
+# Credenciales de Firebase: nunca al repo
+*firebase-adminsdk*.json
+/storage/app/firebase*.json
+google-services.json

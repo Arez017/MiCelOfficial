@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Services\Notificaciones\NotificadorOrdenes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+
+use function Illuminate\Support\defer;
 
 class ServiceOrder extends Model
 {
@@ -28,6 +31,18 @@ class ServiceOrder extends Model
         return [
             'monto' => 'decimal:2',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // Notificación push al cliente cuando su equipo queda listo. Se envía
+        // después de responder, así la web no espera a Firebase.
+        static::updated(function (ServiceOrder $orden) {
+            if ($orden->wasChanged('status') && $orden->status === 'listo') {
+                $id = $orden->id;
+                defer(fn () => app(NotificadorOrdenes::class)->ordenLista($id));
+            }
+        });
     }
 
     public function tecnico()

@@ -84,6 +84,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/cliente/perfil', [ClienteAuthController::class, 'updatePerfil']);
     Route::put('/cliente/password', [ClienteAuthController::class, 'changePassword']);
     Route::get('/cliente/mis-ordenes', [ClienteAuthController::class, 'misOrdenes']);
+    // Notificaciones push de la app (token de Firebase del celular)
+    Route::post('/cliente/notificaciones/token', [ClienteAuthController::class, 'guardarTokenNotificaciones'])->middleware('throttle:10,1');
+    Route::delete('/cliente/notificaciones/token', [ClienteAuthController::class, 'borrarTokenNotificaciones']);
     // Asistente MiCEL (chatbot) de la app móvil — solo clientes, máx. 20 mensajes por minuto
     Route::post('/cliente/chat', [ChatbotController::class, 'chat'])->middleware('throttle:20,1');
 

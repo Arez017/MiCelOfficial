@@ -29,6 +29,7 @@ class Cliente extends Model implements AuthenticatableContract
 
     protected $hidden = [
         'password',
+        'fcm_token',
     ];
 
     protected function casts(): array
@@ -41,6 +42,7 @@ class Cliente extends Model implements AuthenticatableContract
             'total_gastado' => 'decimal:2',
             'es_vip' => 'boolean',
             'active' => 'boolean',
+            'fcm_token_at' => 'datetime',
         ];
     }
 

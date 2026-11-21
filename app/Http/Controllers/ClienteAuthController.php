@@ -45,6 +45,8 @@ class ClienteAuthController extends Controller
     public function logout(Request $request)
     {
         $this->assertEsCliente($request);
+        // Al cerrar sesión ese celular deja de recibir notificaciones.
+        $request->user()->forceFill(['fcm_token' => null, 'fcm_token_at' => null])->save();
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Sesión cerrada.']);
@@ -223,6 +225,39 @@ class ClienteAuthController extends Controller
         return response()->json([
             'message' => 'Contraseña actualizada. Ya puedes iniciar sesión.',
         ]);
+    }
+
+    /**
+     * POST /api/cliente/notificaciones/token
+     * Guarda el token de Firebase del celular donde el cliente inició sesión.
+     */
+    public function guardarTokenNotificaciones(Request $request)
+    {
+        $this->assertEsCliente($request);
+        $data = $request->validate([
+            'token' => ['required', 'string', 'min:20', 'max:512'],
+        ]);
+
+        // Un celular pertenece a una sola cuenta: si otro cliente tenía este token, se le quita.
+        Cliente::where('fcm_token', $data['token'])
+            ->where('id', '!=', $request->user()->id)
+            ->update(['fcm_token' => null, 'fcm_token_at' => null]);
+
+        $request->user()->forceFill(['fcm_token' => $data['token'], 'fcm_token_at' => now()])->save();
+
+        return response()->json(['message' => 'Notificaciones activadas.']);
+    }
+
+    /**
+     * DELETE /api/cliente/notificaciones/token
+     * Deja de enviar notificaciones a este cliente.
+     */
+    public function borrarTokenNotificaciones(Request $request)
+    {
+        $this->assertEsCliente($request);
+        $request->user()->forceFill(['fcm_token' => null, 'fcm_token_at' => null])->save();
+
+        return response()->json(['message' => 'Notificaciones desactivadas.']);
     }
 
     private function assertEsCliente(Request $request): void
