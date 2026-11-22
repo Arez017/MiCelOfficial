@@ -1346,6 +1346,49 @@ function validarMonto(valor, etiqueta, permitirCero) {
   }
   return true;
 }
+
+/**
+ * Lee un campo numérico que no puede ser negativo (precio, stock, montos).
+ * Devuelve el número, o null si no es válido (ya mostró el aviso y puso el foco en el campo).
+ * Un negativo se rechaza siempre; antes se convertía en 0 o se mandaba tal cual al servidor.
+ */
+function leerNoNegativo(id, etiqueta, { entero = false, siVacio = null, minimo = 0 } = {}) {
+  const el = document.getElementById(id);
+  const raw = String(el?.value ?? '').trim().replace(',', '.');
+  const marcar = (msg) => {
+    showToast(msg, 'error');
+    if (el) { el.focus(); el.select?.(); }
+    return null;
+  };
+  // en un <input type="number"> un texto inválido llega vacío: se revisa con validity
+  if (el?.validity?.badInput) return marcar(etiqueta + ': ingresa un número válido');
+  if (raw === '') {
+    if (siVacio !== null) return siVacio;
+    return marcar(etiqueta + ' es obligatorio');
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return marcar(etiqueta + ': ingresa un número válido');
+  if (n < 0) return marcar(etiqueta + ': no puede ser negativo');
+  if (entero && !Number.isInteger(n)) return marcar(etiqueta + ': debe ser un número entero');
+  if (n < minimo) return marcar(etiqueta + ': debe ser al menos ' + minimo);
+  return n;
+}
+
+/**
+ * Si el precio o el stock van a quedar en 0, pide confirmación en una ventana.
+ * avisos: frases como «el precio quedará en Bs 0». Sin avisos, sigue sin preguntar.
+ */
+async function confirmarCeros(avisos, nombre) {
+  if (!avisos.length) return true;
+  const titulo = avisos.length > 1 ? '¿Guardar precio y stock en 0?' : '¿Guardar en 0?';
+  const mensaje = (nombre ? '«' + nombre + '»: ' : '') + 'revisa que sea correcto antes de guardar.';
+  if (typeof confirmarAccion === 'function') {
+    return confirmarAccion({ titulo, mensaje, detalles: avisos.map((a) => a.charAt(0).toUpperCase() + a.slice(1) + '.'),
+      aceptar: 'Sí, guardar en 0', cancelar: 'Revisar' });
+  }
+  return confirm(titulo + '\n\n' + avisos.join('\n'));
+}
+
 function statusBadge(s) {
   const m = {
     Listo: 'badge-green',
@@ -2435,12 +2478,14 @@ async function guardarEdicionRecibo() {
   try {
 
   const id = parseInt(document.getElementById('edit-rec-num').value, 10);
+  const montoEditado = leerNoNegativo('edit-rec-monto', 'Monto', { siVacio: 0 });
+  if (montoEditado === null) return;
   const payload = {
     cliente: document.getElementById('edit-rec-cliente').value.trim(),
     telefono: document.getElementById('edit-rec-telefono').value.trim(),
     equipo: document.getElementById('edit-rec-equipo').value.trim(),
     servicio: document.getElementById('edit-rec-servicio').value.trim(),
-    monto: parseFloat(document.getElementById('edit-rec-monto').value) || 0,
+    monto: montoEditado,
     pago: document.getElementById('edit-rec-pago').value,
     sucursal_id: document.getElementById('edit-rec-sucursal').value || null,
     obs: document.getElementById('edit-rec-obs').value.trim(),
@@ -2537,22 +2582,31 @@ async function guardarEdicionRepuesto() {
   const id = document.getElementById('edit-rep-id')?.value;
   const name = document.getElementById('edit-rep-name')?.value.trim() || '';
   const cat = document.getElementById('edit-rep-cat')?.value.trim() || '';
-  const precio = document.getElementById('edit-rep-precio')?.value || '0';
-  const qty = document.getElementById('edit-rep-qty')?.value || '0';
-  const min = document.getElementById('edit-rep-min')?.value || '1';
   const foto = document.getElementById('edit-rep-foto')?.files?.[0];
   const fotoUrl = document.getElementById('edit-rep-foto-url')?.value || '';
   const autoFoto = document.getElementById('edit-rep-auto-foto')?.checked;
   if (!id || !name) { showToast('Nombre es obligatorio', 'error'); return; }
+  const precio = leerNoNegativo('edit-rep-precio', 'Precio', { siVacio: 0 });
+  if (precio === null) return;
+  const qty = leerNoNegativo('edit-rep-qty', 'Stock', { entero: true, siVacio: 0 });
+  if (qty === null) return;
+  const min = leerNoNegativo('edit-rep-min', 'Stock mínimo', { entero: true, siVacio: 1, minimo: 1 });
+  if (min === null) return;
+  // solo se pregunta si el 0 es nuevo (si ya estaba en 0, editar el nombre no molesta)
+  const antes = stockData.find((x) => String(x.dbId) === String(id));
+  const ceros = [];
+  if (precio === 0 && Number(antes?.precio) !== 0) ceros.push('el precio quedará en Bs 0');
+  if (qty === 0 && Number(antes?.qty) !== 0) ceros.push('el stock quedará en 0 unidades');
+  if (!(await confirmarCeros(ceros, name))) return;
   const btn = document.querySelector('[onclick="guardarEdicionRepuesto()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
   try {
     const fd = new FormData();
     fd.append('name', name);
     fd.append('categoria', cat);
-    fd.append('precio', precio);
-    fd.append('qty', qty);
-    fd.append('min', min);
+    fd.append('precio', String(precio));
+    fd.append('qty', String(qty));
+    fd.append('min', String(min));
     if (foto) fd.append('foto', foto);
     else if (fotoUrl) fd.append('foto_url', fotoUrl);
     else if (autoFoto) fd.append('auto_foto', '1');
@@ -2605,18 +2659,30 @@ async function guardarAjusteStock() {
 
   const id = document.getElementById('adj-id').value;
   const operacion = document.getElementById('adj-operacion').value;
-  const cantidad = parseInt(document.getElementById('adj-cantidad').value, 10);
-  const min = parseInt(document.getElementById('adj-min').value, 10) || 1;
-  const precio = parseFloat(document.getElementById('adj-precio').value) || 0;
-
-  if (isNaN(cantidad) || cantidad < 0 || !Number.isInteger(cantidad)) {
-    showToast('Cantidad: número entero ≥ 0', 'error');
-    return;
-  }
+  // Todo se valida ANTES de enviar: antes se guardaba la cantidad y, si el precio
+  // era inválido, el cambio quedaba a medias.
+  const cantidad = leerNoNegativo('adj-cantidad', 'Cantidad', { entero: true });
+  if (cantidad === null) return;
+  const min = leerNoNegativo('adj-min', 'Stock mínimo', { entero: true, siVacio: 1, minimo: 1 });
+  if (min === null) return;
+  const precio = leerNoNegativo('adj-precio', 'Precio', { siVacio: 0 });
+  if (precio === null) return;
   if (operacion !== 'set' && cantidad === 0) {
     showToast('Para sumar/restar la cantidad debe ser mayor a 0', 'error');
     return;
   }
+
+  const item = stockData.find((x) => String(x.dbId) === String(id));
+  const actual = Number(item?.qty ?? document.getElementById('adj-qty')?.value ?? 0);
+  if (operacion === 'sub' && cantidad > actual) {
+    showToast('Solo hay ' + actual + ' unidad(es): no puedes restar ' + cantidad + '.', 'error');
+    return;
+  }
+  const resultado = operacion === 'set' ? cantidad : operacion === 'add' ? actual + cantidad : actual - cantidad;
+  const ceros = [];
+  if (resultado === 0 && actual !== 0) ceros.push('el stock quedará en 0 unidades');
+  if (precio === 0 && Number(item?.precio) !== 0) ceros.push('el precio quedará en Bs 0');
+  if (!(await confirmarCeros(ceros, item?.name))) return;
 
   try {
     // El ajuste de cantidad y la edición de min/precio son dos endpoints
@@ -2649,22 +2715,29 @@ async function guardarRepuesto() {
   if (!esAdminOSuper()) { showToast('Solo Admin / Super Admin pueden modificar el stock', 'error'); return; }
   const name = document.getElementById('new-rep-name')?.value.trim() || '';
   const cat = document.getElementById('new-rep-cat')?.value || 'General';
-  const precio = document.getElementById('new-rep-precio')?.value || '0';
-  const qty = document.getElementById('new-rep-qty')?.value || '0';
-  const min = document.getElementById('new-rep-min')?.value || '5';
   const foto = document.getElementById('new-rep-foto')?.files?.[0];
   const fotoUrl = document.getElementById('new-rep-foto-url')?.value || '';
   const autoFoto = document.getElementById('new-rep-auto-foto')?.checked;
   if (!name) { showToast('Nombre del repuesto es obligatorio', 'error'); return; }
+  const precio = leerNoNegativo('new-rep-precio', 'Precio', { siVacio: 0 });
+  if (precio === null) return;
+  const qty = leerNoNegativo('new-rep-qty', 'Stock', { entero: true, siVacio: 0 });
+  if (qty === null) return;
+  const min = leerNoNegativo('new-rep-min', 'Stock mínimo', { entero: true, siVacio: 5, minimo: 1 });
+  if (min === null) return;
+  const ceros = [];
+  if (precio === 0) ceros.push('el precio quedará en Bs 0');
+  if (qty === 0) ceros.push('el stock quedará en 0 unidades');
+  if (!(await confirmarCeros(ceros, name))) return;
   const btn = document.querySelector('[onclick="guardarRepuesto()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
   try {
     const fd = new FormData();
     fd.append('name', name);
     fd.append('categoria', cat);
-    fd.append('precio', precio);
-    fd.append('qty', qty);
-    fd.append('min', min);
+    fd.append('precio', String(precio));
+    fd.append('qty', String(qty));
+    fd.append('min', String(min));
     if (foto) fd.append('foto', foto);
     else if (fotoUrl) fd.append('foto_url', fotoUrl);
     else if (autoFoto) fd.append('auto_foto', '1');
@@ -3135,7 +3208,8 @@ async function generarRecibo() {
   if (!validarTelefono(telefono, false)) return;
   const equipo = document.getElementById('recibo-equipo').value.trim();
   const servicio = document.getElementById('recibo-servicio').value.trim();
-  const monto = parseFloat(document.getElementById('recibo-monto').value) || 0;
+  const monto = leerNoNegativo('recibo-monto', 'Monto', { siVacio: 0 });
+  if (monto === null) return;
   const pago = document.getElementById('recibo-pago').value;
   const tecnico_id = document.getElementById('recibo-tech').value || null;
   const sucursal_id = document.getElementById('recibo-sucursal').value || null;
