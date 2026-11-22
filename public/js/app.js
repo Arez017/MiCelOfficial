@@ -1389,6 +1389,27 @@ async function confirmarCeros(avisos, nombre) {
   return confirm(titulo + '\n\n' + avisos.join('\n'));
 }
 
+/** Servicios que pueden ser gratis por promoción: una orden en Bs 0 no pide confirmación. */
+const RE_SERVICIO_REVISION = /revisi[oó]n|diagn[oó]stico/i;
+
+/**
+ * Una orden en Bs 0 que NO es revisión casi siempre es un olvido: se pide confirmación.
+ * Devuelve true si se puede guardar.
+ */
+async function confirmarOrdenSinCosto(servicio, cliente) {
+  if (RE_SERVICIO_REVISION.test(servicio || '')) return true;
+  const titulo = '¿Orden sin costo?';
+  const mensaje = (cliente ? '«' + cliente + '» · ' : '') + (servicio || 'Servicio') + ': el monto quedará en Bs 0.';
+  const detalles = [
+    'Si todavía no sabes el precio, puedes ponerlo después al editar la orden.',
+    'Si es una revisión gratuita, elige el servicio «Revisión / diagnóstico» y no se volverá a preguntar.',
+  ];
+  if (typeof confirmarAccion === 'function') {
+    return confirmarAccion({ titulo, mensaje, detalles, aceptar: 'Sí, guardar en Bs 0', cancelar: 'Revisar' });
+  }
+  return confirm(titulo + '\n\n' + mensaje);
+}
+
 function statusBadge(s) {
   const m = {
     Listo: 'badge-green',
@@ -1917,8 +1938,12 @@ async function guardarEdicionOrden() {
   if (!validarNombre(clientEdit, 'Cliente')) return;
   const phoneEdit = document.getElementById('edit-order-phone').value.trim();
   if (!validarTelefono(phoneEdit, false, { inputId: 'edit-order-phone' })) return;
-  const montoEdit = document.getElementById('edit-order-monto').value;
-  if (montoEdit !== '' && !validarMonto(montoEdit, 'Monto', true)) return;
+  const montoEdit = leerNoNegativo('edit-order-monto', 'Monto', { siVacio: 0 });
+  if (montoEdit === null) return;
+  const servicioEdit = document.getElementById('edit-order-service').value.trim();
+  const ordenAntes = ordersData.find((x) => String(x.id) === String(id));
+  // solo se pregunta si el monto PASA a 0 (si ya estaba en 0, editar otra cosa no molesta)
+  if (montoEdit === 0 && Number(ordenAntes?.monto) !== 0 && !(await confirmarOrdenSinCosto(servicioEdit, clientEdit))) return;
   const statusVal = document.getElementById('edit-order-status').value;
   try {
     await OrdersAPI.update(id, {
@@ -1926,8 +1951,8 @@ async function guardarEdicionOrden() {
       phone: telefonoParaGuardar('edit-order-phone') || limpiarTelefono(phoneEdit) || null,
       imei: (document.getElementById('edit-order-imei')?.value || '').trim() || null,
       device: document.getElementById('edit-order-device').value.trim(),
-      service: document.getElementById('edit-order-service').value.trim(),
-      monto: parseFloat(document.getElementById('edit-order-monto').value) || 0,
+      service: servicioEdit,
+      monto: montoEdit,
       obs: document.getElementById('edit-order-obs').value.trim(),
       status: mapStatusToApi(statusVal),
       tecnico_id: document.getElementById('edit-order-tech').value || null,
@@ -1975,8 +2000,6 @@ async function guardarOrden() {
   const imei = (document.getElementById('modal-imei')?.value || '').trim();
   const device = document.getElementById('modal-device').value.trim();
   const service = document.getElementById('modal-service').value;
-  const montoRaw = document.getElementById('modal-monto').value;
-  const monto = parseFloat(montoRaw) || 0;
   const obs = document.getElementById('modal-obs').value.trim();
   const sucursal_id = document.getElementById('modal-branch').value || null;
   const tecnico_id = document.getElementById('modal-tech').value || null;
@@ -1985,7 +2008,9 @@ async function guardarOrden() {
   if (!validarTelefono(phone, false, { inputId: 'modal-phone' })) return;
   if (!device) { showToast('Equipo es obligatorio', 'error'); return; }
   if (!service) { showToast('Servicio es obligatorio', 'error'); return; }
-  if (montoRaw !== '' && !validarMonto(montoRaw, 'Monto estimado', true)) return;
+  const monto = leerNoNegativo('modal-monto', 'Monto estimado', { siVacio: 0 });
+  if (monto === null) return;
+  if (monto === 0 && !(await confirmarOrdenSinCosto(service, client))) return;
 
   const btn = document.querySelector('#modal-orden .btn-primary, [onclick="guardarOrden()"]');
   _guardandoOrden = true;
