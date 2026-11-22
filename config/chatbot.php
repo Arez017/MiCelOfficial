@@ -25,9 +25,11 @@ return [
         // gasta tokens: con un límite bajo la respuesta llega vacía. Las respuestas
         // igual salen cortas porque las instrucciones piden máximo 6 líneas.
         'max_tokens' => (int) env('MICEL_CHAT_MAX_TOKENS', 2048),
-        // low = piensa poco y responde rápido (Gemini/OpenAI). Déjalo vacío para
-        // proveedores que no lo aceptan (por ejemplo Groq con Llama).
-        'reasoning_effort' => env('MICEL_CHAT_REASONING'),
+        // low = piensa poco y responde rápido (Gemini/OpenAI). Vacío = el modelo decide
+        // cuánto pensar: con preguntas de diagnóstico Gemini puede pasar de los 18 s
+        // y responde el plan B. Déjalo vacío solo para proveedores que no lo aceptan
+        // (por ejemplo Groq con Llama).
+        'reasoning_effort' => env('MICEL_CHAT_REASONING', 'low'),
     ],
 
     'negocio' => [
