@@ -364,7 +364,7 @@
           <div class="form-grid">
             <div class="form-group"><label>Cliente (opcional)</label><input type="text" id="venta-cliente" placeholder="Nombre del cliente"></div>
             <div class="form-group"><label>Detalle del servicio / producto</label><input type="text" id="venta-detalle" placeholder="Ej: Cambio de pantalla Samsung A32"></div>
-            <div class="form-group"><label>Monto (Bs)</label><input type="number" id="venta-monto" placeholder="0.00"></div>
+            <div class="form-group"><label>Monto (Bs)</label><input type="number" id="venta-monto" placeholder="0.00" min="0" step="0.01"></div>
             <div class="form-group"><label>Método de pago</label>
               <select id="venta-pago" onchange="mostrarQrCobroSiAplica(this.value)"><option>Efectivo</option><option>QR (transferencia)</option><option>Transferencia bancaria</option></select>
             </div>
@@ -400,7 +400,7 @@
             <div class="form-group"><label>Estado del equipo</label>
               <select id="cel-inv-estado"><option>Nuevo</option><option>Usado — Excelente</option><option>Usado — Bueno</option><option>Reacondicionado</option></select>
             </div>
-            <div class="form-group"><label>Precio de compra (Bs) *</label><input type="number" id="cel-inv-compra" placeholder="0.00"></div>
+            <div class="form-group"><label>Precio de compra (Bs) *</label><input type="number" id="cel-inv-compra" placeholder="0.00" min="0" step="0.01"></div>
             <div class="form-group"><label>Sucursal</label>
               <select id="cel-inv-branch"></select>
             </div>
@@ -432,7 +432,7 @@
             </div>
             <div class="form-group"><label>Cliente *</label><input type="text" id="cel-cliente" placeholder="Nombre del cliente"></div>
             <div class="form-group"><label>Teléfono / CI cliente</label><input type="text" id="cel-cliente-tel" placeholder="Ej: 71234567"></div>
-            <div class="form-group"><label>Precio de venta (Bs) *</label><input type="number" id="cel-venta" placeholder="0.00"></div>
+            <div class="form-group"><label>Precio de venta (Bs) *</label><input type="number" id="cel-venta" placeholder="0.00" min="0" step="0.01"></div>
             <div class="form-group"><label>Método de pago</label>
               <select id="cel-pago" onchange="toggleCuotasFields();mostrarQrCobroSiAplica(this.value)"><option>Efectivo</option><option>QR (transferencia)</option><option>Transferencia bancaria</option><option>Cuotas</option></select>
             </div>
@@ -440,7 +440,7 @@
 
           <!-- Campos que solo aparecen si el método de pago es "Cuotas" -->
           <div class="form-grid hidden" id="cel-cuotas-fields" style="border-top:1px solid var(--gray-100)">
-            <div class="form-group"><label>Pago inicial (Bs) — opcional</label><input type="number" id="cel-cuotas-inicial" placeholder="0.00 (puedes dejarlo en 0)"></div>
+            <div class="form-group"><label>Pago inicial (Bs) — opcional</label><input type="number" id="cel-cuotas-inicial" placeholder="0.00 (puedes dejarlo en 0)" min="0" step="0.01"></div>
             <div class="form-group"><label>Número de cuotas * (máx. 15)</label><input type="number" id="cel-cuotas-numero" placeholder="Ej: 6" min="1" max="15"></div>
             <div class="form-group"><label>Frecuencia de pago</label>
               <select id="cel-cuotas-frecuencia"><option value="mensual">Mensual</option><option value="quincenal">Quincenal</option><option value="semanal">Semanal</option></select>
@@ -587,7 +587,7 @@
             <div class="form-group"><label>Teléfono</label><input type="text" id="recibo-telefono" placeholder="7XXXXXXX"></div>
             <div class="form-group"><label id="lbl-recibo-equipo">Equipo *</label><input type="text" id="recibo-equipo" placeholder="Marca y modelo"></div>
             <div class="form-group"><label id="lbl-recibo-servicio">Servicio realizado *</label><input type="text" id="recibo-servicio" placeholder="Descripción del servicio"></div>
-            <div class="form-group"><label id="lbl-recibo-monto">Monto total (Bs) *</label><input type="number" id="recibo-monto" placeholder="0.00"></div>
+            <div class="form-group"><label id="lbl-recibo-monto">Monto total (Bs) *</label><input type="number" id="recibo-monto" placeholder="0.00" min="0" step="0.01"></div>
             <div class="form-group"><label>Método de pago</label>
               <select id="recibo-pago" onchange="mostrarQrCobroSiAplica(this.value)"><option>Efectivo</option><option>QR (transferencia)</option><option>Transferencia bancaria</option></select>
             </div>
@@ -821,7 +821,7 @@
       <div class="form-group"><label>Teléfono <span style="color:var(--gray-400);font-weight:400">(opcional)</span></label><input type="text" id="modal-phone" placeholder="Ej: 71234567"></div>
       <div class="form-group"><label>Equipo (marca y modelo) *</label><input type="text" id="modal-device" placeholder="Ej: Samsung Galaxy A32"></div>
       <div class="form-group"><label>IMEI <span style="color:var(--gray-400);font-weight:400">(opcional)</span></label><input type="text" id="modal-imei" placeholder="15 dígitos" maxlength="20" inputmode="numeric"></div>
-      <div class="form-group"><label>Monto estimado (Bs)</label><input type="number" id="modal-monto" placeholder="0.00"></div>
+      <div class="form-group"><label>Monto estimado (Bs)</label><input type="number" id="modal-monto" placeholder="0.00" min="0" step="0.01"></div>
       <div class="form-group" style="grid-column:span 2"><label>Servicio solicitado *</label>
         <select id="modal-service">
           <option>Cambio de pantalla</option><option>Cambio de batería</option><option>Pin de carga</option>
@@ -856,7 +856,7 @@
       <div class="form-group"><label>Equipo</label><input type="text" id="edit-order-device"></div>
       <div class="form-group"><label>IMEI <span style="color:var(--gray-400);font-weight:400">(opcional)</span></label><input type="text" id="edit-order-imei" placeholder="15 dígitos" maxlength="20" inputmode="numeric"></div>
       <div class="form-group"><label>Servicio</label><input type="text" id="edit-order-service"></div>
-      <div class="form-group"><label>Monto final (Bs) ← precio del técnico/admin</label><input type="number" id="edit-order-monto" placeholder="0.00"></div>
+      <div class="form-group"><label>Monto final (Bs) ← precio del técnico/admin</label><input type="number" id="edit-order-monto" placeholder="0.00" min="0" step="0.01"></div>
       <div class="form-group"><label>Estado</label>
         <select id="edit-order-status">
           <option value="Recepción">Recepción</option><option value="Diagnóstico">Diagnóstico</option>
@@ -888,9 +888,9 @@
           <option>Retroiluminación</option><option>Flex</option><option>Audio</option><option>Accesorios</option>
         </select>
       </div>
-      <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="new-rep-precio" placeholder="0.00"></div>
-      <div class="form-group"><label>Cantidad inicial</label><input type="number" id="new-rep-qty" placeholder="0" value="0"></div>
-      <div class="form-group"><label>Stock mínimo</label><input type="number" id="new-rep-min" placeholder="5" value="5"></div>
+      <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="new-rep-precio" placeholder="0.00" min="0" step="0.01"></div>
+      <div class="form-group"><label>Cantidad inicial</label><input type="number" id="new-rep-qty" placeholder="0" value="0" min="0" step="1"></div>
+      <div class="form-group"><label>Stock mínimo</label><input type="number" id="new-rep-min" placeholder="5" value="5" min="1" step="1"></div>
       <div class="form-group" style="grid-column:span 2"><label>Foto del producto (opcional)</label>
         <input type="file" id="new-rep-foto" accept="image/*">
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
@@ -919,9 +919,9 @@
     <div class="form-grid">
       <div class="form-group" style="grid-column:span 2"><label>Nombre</label><input type="text" id="edit-rep-name"></div>
       <div class="form-group"><label>Categoría</label><input type="text" id="edit-rep-cat"></div>
-      <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="edit-rep-precio"></div>
-      <div class="form-group"><label>Stock actual</label><input type="number" id="edit-rep-qty"></div>
-      <div class="form-group"><label>Stock mínimo</label><input type="number" id="edit-rep-min"></div>
+      <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="edit-rep-precio" min="0" step="0.01"></div>
+      <div class="form-group"><label>Stock actual</label><input type="number" id="edit-rep-qty" min="0" step="1"></div>
+      <div class="form-group"><label>Stock mínimo</label><input type="number" id="edit-rep-min" min="1" step="1"></div>
       <div class="form-group" style="grid-column:span 2"><label>Foto del producto</label>
         <input type="file" id="edit-rep-foto" accept="image/*">
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
@@ -951,8 +951,8 @@
       <div style="font-size:14px;font-weight:600;color:var(--gray-100,#f4f4f5);margin-bottom:4px" id="adj-name"></div>
       <div style="font-size:12px;color:var(--gray-400);margin-bottom:16px">Modifica el stock de este repuesto individualmente</div>
       <div class="form-grid" style="grid-template-columns:1fr 1fr">
-        <div class="form-group"><label>Stock mínimo</label><input type="number" id="adj-min"></div>
-        <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="adj-precio"></div>
+        <div class="form-group"><label>Stock mínimo</label><input type="number" id="adj-min" min="1" step="1"></div>
+        <div class="form-group"><label>Precio unitario (Bs)</label><input type="number" id="adj-precio" min="0" step="0.01"></div>
         <div class="form-group"><label>Stock actual</label><input type="number" id="adj-qty" style="font-weight:600" readonly></div>
         <div class="form-group"><label>Operación</label>
           <select id="adj-operacion">
@@ -1077,7 +1077,7 @@
       <div class="form-group"><label>Teléfono</label><input type="text" id="edit-rec-telefono"></div>
       <div class="form-group"><label>Equipo</label><input type="text" id="edit-rec-equipo"></div>
       <div class="form-group"><label>Servicio realizado</label><input type="text" id="edit-rec-servicio"></div>
-      <div class="form-group"><label>Monto (Bs)</label><input type="number" id="edit-rec-monto"></div>
+      <div class="form-group"><label>Monto (Bs)</label><input type="number" id="edit-rec-monto" min="0" step="0.01"></div>
       <div class="form-group"><label>Método de pago</label>
         <select id="edit-rec-pago">
           <option value="Efectivo">Efectivo</option>
@@ -1393,7 +1393,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="js/api.js"></script>
-<script src="js/app.js"></script>
+<script src="js/confirmar.js?v=20261122"></script>
+<script src="js/app.js?v=20261122"></script>
 <script src="js/theme-toggle.js"></script>
 <script src="js/cuotalock-panel.js?v=20261120"></script>
 <script src="js/extensions.js"></script>

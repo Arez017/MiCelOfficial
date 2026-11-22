@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Cupon extends Model
 {
+    /** Laravel pluraliza en inglés («cupons»); la tabla real es «cupones». */
+    protected $table = 'cupones';
+
     protected $fillable = [
         'titulo',
         'descripcion',

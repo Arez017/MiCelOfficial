@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Cupon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class CuponController extends Controller
 {
@@ -45,7 +46,7 @@ class CuponController extends Controller
 
     private function validarDatos(Request $request, ?int $ignorarId = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'titulo' => ['required', 'string', 'max:255'],
             'descripcion' => ['nullable', 'string'],
             'codigo' => ['required', 'string', 'max:50', 'unique:cupones,codigo,' . $ignorarId],
@@ -54,7 +55,17 @@ class CuponController extends Controller
             'solo_vip' => ['sometimes', 'boolean'],
             'fecha_vencimiento' => ['nullable', 'date'],
             'activo' => ['sometimes', 'boolean'],
+        ], [
+            'descuento_valor.min' => 'El descuento no puede ser negativo.',
         ]);
+
+        if ($data['descuento_tipo'] === 'porcentaje' && (float) $data['descuento_valor'] > 100) {
+            throw ValidationException::withMessages([
+                'descuento_valor' => 'Un descuento en porcentaje no puede pasar de 100 %.',
+            ]);
+        }
+
+        return $data;
     }
 
     private function assertEsAdmin(Request $request): void

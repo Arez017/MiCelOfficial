@@ -7,9 +7,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class StockItemController extends Controller
 {
+    /** Mensajes en español para los campos numéricos (el resto usa los de Laravel). */
+    private const MENSAJES = [
+        'qty.integer' => 'El stock debe ser un número entero.',
+        'qty.min' => 'El stock no puede ser negativo.',
+        'min.integer' => 'El stock mínimo debe ser un número entero.',
+        'min.min' => 'El stock mínimo debe ser al menos 1.',
+        'precio.numeric' => 'El precio debe ser un número.',
+        'precio.min' => 'El precio no puede ser negativo.',
+        'cantidad.required' => 'Ingresa la cantidad.',
+        'cantidad.integer' => 'La cantidad debe ser un número entero.',
+        'cantidad.min' => 'La cantidad no puede ser negativa.',
+    ];
+
     public function index(Request $request)
     {
         $query = StockItem::query();
@@ -50,7 +64,7 @@ class StockItemController extends Controller
             'foto' => ['nullable', 'image', 'max:3072'],
             'foto_url' => ['nullable', 'string', 'max:1000'],
             'auto_foto' => ['nullable', 'boolean'],
-        ]);
+        ], self::MENSAJES);
 
         $data['code'] = $this->siguienteCodigo();
         $data['qty'] = $data['qty'] ?? 0;
@@ -87,7 +101,7 @@ class StockItemController extends Controller
             'foto' => ['nullable', 'image', 'max:3072'],
             'foto_url' => ['nullable', 'string', 'max:1000'],
             'auto_foto' => ['nullable', 'boolean'],
-        ]);
+        ], self::MENSAJES);
 
         if ($request->hasFile('foto')) {
             if ($stock->foto_path && ! str_starts_with((string) $stock->foto_path, 'http')) {
@@ -150,7 +164,7 @@ class StockItemController extends Controller
             'modo' => ['sometimes', 'in:set,add,sub'],
             'operacion' => ['sometimes', 'in:set,add,sub'],
             'cantidad' => ['required', 'integer', 'min:0'],
-        ]);
+        ], self::MENSAJES);
 
         $modo = $data['modo'] ?? $data['operacion'] ?? 'set';
         $qty = (int) $stock->qty;
@@ -159,7 +173,13 @@ class StockItemController extends Controller
         } elseif ($modo === 'add') {
             $qty += $data['cantidad'];
         } else {
-            $qty = max(0, $qty - $data['cantidad']);
+            // Antes se dejaba en 0 sin avisar: restar más de lo que hay es un error de carga.
+            if ($data['cantidad'] > $qty) {
+                throw ValidationException::withMessages([
+                    'cantidad' => "No hay suficiente stock: hay {$qty} unidad(es) y se quieren restar {$data['cantidad']}.",
+                ]);
+            }
+            $qty -= $data['cantidad'];
         }
 
         $stock->update(['qty' => $qty]);
