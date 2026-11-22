@@ -84,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/cliente/perfil', [ClienteAuthController::class, 'updatePerfil']);
     Route::put('/cliente/password', [ClienteAuthController::class, 'changePassword']);
     Route::get('/cliente/mis-ordenes', [ClienteAuthController::class, 'misOrdenes']);
+    Route::get('/cliente/cupones', [ClienteAuthController::class, 'cupones']);
     // Asistente MiCEL (chatbot) de la app móvil — solo clientes, máx. 20 mensajes por minuto
     Route::post('/cliente/chat', [ChatbotController::class, 'chat'])->middleware('throttle:20,1');
 
