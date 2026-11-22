@@ -152,3 +152,31 @@ it('no manda reasoning_effort si está vacío (proveedores que no lo aceptan)', 
     $this->postJson('/api/cliente/chat', ['message' => 'hola'])->assertOk();
     Http::assertSent(fn ($req) => ! isset($req['reasoning_effort']));
 });
+
+it('si la IA tarda demasiado, orienta al cliente con su falla y lo anota en una línea del log', function () {
+    config(['chatbot.ia.api_key' => 'clave-de-prueba', 'chatbot.ia.base_url' => 'https://ia.test/v1']);
+    Http::fake(fn () => throw new \Illuminate\Http\Client\ConnectionException('cURL error 28: Operation timed out after 18009 milliseconds'));
+    \Illuminate\Support\Facades\Log::spy();
+    clienteChat();
+
+    $this->postJson('/api/cliente/chat', ['message' => 'tengo problemas con un redmi 9A, se vuelve loca la pantalla'])
+        ->assertOk()
+        ->assertJsonPath('source', 'micel')
+        ->assertJsonPath('reply', fn ($r) => str_contains($r, 'conviene que lo revise un técnico') && str_contains($r, 'Ana'));
+
+    \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')
+        ->withArgs(fn ($msg) => str_contains($msg, 'la IA no respondió a tiempo'))->once();
+});
+
+it('por defecto le pide a la IA razonamiento bajo para que responda rápido', function () {
+    expect(require base_path('config/chatbot.php'))->toHaveKey('ia');
+    $original = getenv('MICEL_CHAT_REASONING');
+    putenv('MICEL_CHAT_REASONING');
+    unset($_ENV['MICEL_CHAT_REASONING'], $_SERVER['MICEL_CHAT_REASONING']);
+    $config = require base_path('config/chatbot.php');
+    if ($original !== false) {
+        putenv("MICEL_CHAT_REASONING={$original}");
+    }
+
+    expect($config['ia']['reasoning_effort'])->toBe('low');
+});

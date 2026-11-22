@@ -5,6 +5,7 @@ namespace App\Services\Chatbot;
 use App\Models\ChatbotMensaje;
 use App\Models\Cliente;
 use App\Models\ServiceOrder;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -217,6 +218,15 @@ class AsistenteMicel
             }
 
             return $texto;
+        } catch (ConnectionException $e) {
+            // La IA tardó más que el límite o no hubo internet: basta una línea en el log.
+            Log::warning('Chatbot: la IA no respondió a tiempo; responde el plan B', [
+                'timeout_s' => (int) config('chatbot.ia.timeout', 18),
+                'razonamiento' => config('chatbot.ia.reasoning_effort') ?: '(por defecto del modelo)',
+                'error' => Str::limit($e->getMessage(), 160),
+            ]);
+
+            return null;
         } catch (\Throwable $e) {
             report($e);
 

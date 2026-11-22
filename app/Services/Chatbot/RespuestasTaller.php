@@ -56,6 +56,16 @@ class RespuestasTaller
             return "¡Hola, {$nombre}! 👋 ¿En qué te ayudo hoy? Puedo contarte cómo va tu reparación, tus coins, las garantías o los horarios del taller.";
         }
 
+        // Fallas del equipo: sin IA no se diagnostica, pero se orienta al cliente.
+        if (preg_match('/\b(pantalla|tactil|touch|display|no carga|carga|cargador|pin de carga|bateria|se apaga|se reinicia|'
+            .'no prende|no enciende|se mojo|mojado|agua|camara|microfono|parlante|altavoz|audio|sonido|no suena|wifi|senal|'
+            .'lento|se calienta|falla|fallas|problema|problemas|roto|rota|rajado|se vuelve loco|se vuelve loca|fantasma|'
+            .'no funciona|se trabo|se cuelga)\b/u', $t)) {
+            return "Uy, {$nombre}, eso conviene que lo revise un técnico 🔧. Trae tu equipo al taller con su cargador y la contraseña o patrón; "
+                ."te damos una orden con código para que sigas la reparación desde la app. Consultas: {$n['contacto']}. "
+                .'Si quieres, te cuento los precios referenciales.';
+        }
+
         if (preg_match('/\b(gracias|adios|chau|nos vemos)\b/u', $t)) {
             return '¡Con gusto! Aquí estoy cuando me necesites 🔧';
         }
