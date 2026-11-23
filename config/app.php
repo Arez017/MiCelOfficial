@@ -29,11 +29,14 @@ return [
     'env' => env('APP_ENV', 'production'),
 
     /*
-    | Contraseña de los usuarios de ejemplo que crea `php artisan db:seed`.
-    | Si se deja vacía, el seeder genera una al azar y la muestra en consola.
+    | Contraseñas que usa `php artisan db:seed`: una para el Super Admin y otra
+    | para las cuentas de demostración. Si se dejan vacías, el seeder genera
+    | una al azar y la muestra en consola.
     */
 
     'seed_password' => env('SEED_PASSWORD'),
+
+    'seed_superadmin_password' => env('SEED_SUPERADMIN_PASSWORD'),
 
     /*
     |--------------------------------------------------------------------------
