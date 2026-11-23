@@ -1,59 +1,73 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# MiCel · Sistema web y API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sistema de información web-móvil para las sucursales de **Laboratorio «MiCel»** (El Alto, Bolivia): servicio técnico de celulares, control de stock, ventas y venta a crédito con bloqueo por cuota vencida.
 
-## About Laravel
+Este repositorio contiene la **web del personal** y la **API REST** que consumen las apps móviles. Las apps están en [Arez017/MiCel](https://github.com/Arez017/MiCel), en la carpeta `App Movil/`:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- `micel`: app del cliente (Flutter).
+- `cuotalock`: app de bloqueo para equipos vendidos a crédito (Android).
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+> Cualquier cambio en la API (rutas, respuestas o autenticación) debe revisarse contra esas apps para no romperlas.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Qué hace
 
-## Learning Laravel
+- **Órdenes de servicio** con código de seguimiento y estados (recepción → listo), recibos e historial de reparaciones.
+- **Stock de repuestos** con descuento automático por reparación y alerta de stock mínimo, sincronizado entre sucursales.
+- **Ventas**: punto de venta, celulares por IMEI, cupones y reportes por técnico y por sucursal.
+- **Venta a crédito con CuotaLock**: planes de pago, cuotas y códigos de desbloqueo que el celular valida sin internet.
+- **App del cliente**: cuenta propia, seguimiento de equipos, MiCEL Coins y asistente con IA (Gemini) con filtro de lenguaje.
+- **Aviso push** (Firebase Cloud Messaging): «¡Tu equipo está listo!» cuando la orden pasa a *listo*.
+- **Roles**: Super Admin, Administrador y Técnico.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## Tecnologías
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+PHP 8.4 · Laravel 12 · Sanctum · PostgreSQL (SQLite en pruebas) · Pest · Docker
 
-## Laravel Sponsors
+## Instalación local
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```bash
+git clone https://github.com/Arez017/MiCelOfficial.git
+cd MiCelOfficial
+composer run setup          # instala dependencias, crea .env y APP_KEY, migra
+php artisan db:seed         # datos de ejemplo (ver «Usuarios de ejemplo»)
+composer run dev            # servidor, cola y Vite
+```
 
-### Premium Partners
+Con Laravel Herd basta con dejar la carpeta dentro de `Herd` y abrir `http://<nombre-de-la-carpeta>.test`.
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+Para levantarlo con Docker y PostgreSQL, ve a [README-DOCKER.md](README-DOCKER.md).
 
-## Contributing
+## Configuración (`.env`)
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Copia `.env.example` y completa lo que vayas a usar. **Nunca subas el `.env` ni las credenciales al repositorio.**
 
-## Code of Conduct
+| Variable | Para qué sirve |
+|---|---|
+| `DB_*` | Conexión a la base de datos (PostgreSQL en producción). |
+| `SEED_PASSWORD` | Contraseña de los usuarios de ejemplo. Si está vacía, `db:seed` genera una al azar y la muestra una vez. |
+| `MICEL_CHAT_API_KEY` | Clave de Gemini para el asistente. Sin ella, el chat responde con el menú básico. |
+| `MICEL_CHAT_MODEL`, `MICEL_CHAT_REASONING` | Modelo y nivel de razonamiento (`low` evita que la respuesta tarde demasiado). |
+| `FCM_CREDENTIALS`, `FCM_PROJECT_ID` | Cuenta de servicio de Firebase para los avisos push. Guarda el JSON fuera de git (por ejemplo, en `storage/app/`). |
+| `CUOTALOCK_DIAS_GRACIA`, `CUOTALOCK_ZONA` | Días de gracia antes del bloqueo y zona horaria de las cuotas. |
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Usuarios de ejemplo
 
-## Security Vulnerabilities
+`php artisan db:seed` crea las sucursales, los usuarios del personal y datos de prueba. Todos los usuarios reciben la contraseña de `SEED_PASSWORD`, o una generada al azar si no la defines.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+En una base real, cambia las contraseñas desde el panel después del primer ingreso.
 
-## License
+## Pruebas
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+composer test
+```
+
+## Antes de producción
+
+- `APP_ENV=production` y `APP_DEBUG=false`.
+- Clave propia de Gemini y cuenta de servicio de Firebase propia, sin subirlas al repositorio.
+- `php artisan config:cache` y `php artisan route:cache` después de cada despliegue.
+
+## Autor
+
+[Arez017](https://github.com/Arez017) — proyecto de grado, Instituto Tecnológico INFOCAL La Paz, 2026.
