@@ -7,17 +7,25 @@ use Illuminate\Support\Facades\Hash;
 
 uses(RefreshDatabase::class);
 
-test('el seeder usa la contraseña definida en SEED_PASSWORD', function () {
-    config(['app.seed_password' => 'Clave-De-Prueba-9']);
+test('el Super Admin usa su propia contraseña y las cuentas de demostración la suya', function () {
+    config([
+        'app.seed_password' => 'demo-1234',
+        'app.seed_superadmin_password' => 'Solo-Del-Super-Admin-9',
+    ]);
 
     $this->seed(DatabaseSeeder::class);
 
-    $admin = User::where('username', 'arez')->firstOrFail();
-    expect(Hash::check('Clave-De-Prueba-9', $admin->password))->toBeTrue();
+    $superAdmin = User::where('username', 'arez')->firstOrFail();
+    expect(Hash::check('Solo-Del-Super-Admin-9', $superAdmin->password))->toBeTrue()
+        ->and(Hash::check('demo-1234', $superAdmin->password))->toBeFalse();
+
+    User::where('username', '!=', 'arez')->get()->each(
+        fn (User $usuario) => expect(Hash::check('demo-1234', $usuario->password))->toBeTrue()
+    );
 });
 
-test('sin SEED_PASSWORD el seeder no usa las contraseñas antiguas del repositorio', function () {
-    config(['app.seed_password' => null]);
+test('sin contraseñas en el .env el seeder no usa las antiguas del repositorio', function () {
+    config(['app.seed_password' => null, 'app.seed_superadmin_password' => null]);
 
     $this->seed(DatabaseSeeder::class);
 
