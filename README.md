@@ -44,7 +44,8 @@ Copia `.env.example` y completa lo que vayas a usar. **Nunca subas el `.env` ni 
 | Variable | Para qué sirve |
 |---|---|
 | `DB_*` | Conexión a la base de datos (PostgreSQL en producción). |
-| `SEED_PASSWORD` | Contraseña de los usuarios de ejemplo. Si está vacía, `db:seed` genera una al azar y la muestra una vez. |
+| `SEED_PASSWORD` | Contraseña de las cuentas de demostración que crea `db:seed`. |
+| `SEED_SUPERADMIN_PASSWORD` | Contraseña del Super Admin, aparte de las demás. Si alguna está vacía, `db:seed` genera una al azar y la muestra una vez. |
 | `MICEL_CHAT_API_KEY` | Clave de Gemini para el asistente. Sin ella, el chat responde con el menú básico. |
 | `MICEL_CHAT_MODEL`, `MICEL_CHAT_REASONING` | Modelo y nivel de razonamiento (`low` evita que la respuesta tarde demasiado). |
 | `FCM_CREDENTIALS`, `FCM_PROJECT_ID` | Cuenta de servicio de Firebase para los avisos push. Guarda el JSON fuera de git (por ejemplo, en `storage/app/`). |
@@ -52,7 +53,7 @@ Copia `.env.example` y completa lo que vayas a usar. **Nunca subas el `.env` ni 
 
 ## Usuarios de ejemplo
 
-`php artisan db:seed` crea las sucursales, los usuarios del personal y datos de prueba. Todos los usuarios reciben la contraseña de `SEED_PASSWORD`, o una generada al azar si no la defines.
+`php artisan db:seed` crea las sucursales, los usuarios del personal y datos de prueba. El Super Admin recibe la contraseña de `SEED_SUPERADMIN_PASSWORD` y las demás cuentas la de `SEED_PASSWORD`; si no las defines, se generan al azar.
 
 En una base real, cambia las contraseñas desde el panel después del primer ingreso.
 
