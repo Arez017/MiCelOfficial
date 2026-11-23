@@ -29,6 +29,13 @@ return [
     'env' => env('APP_ENV', 'production'),
 
     /*
+    | Contraseña de los usuarios de ejemplo que crea `php artisan db:seed`.
+    | Si se deja vacía, el seeder genera una al azar y la muestra en consola.
+    */
+
+    'seed_password' => env('SEED_PASSWORD'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Debug Mode
     |--------------------------------------------------------------------------
