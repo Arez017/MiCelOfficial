@@ -2020,22 +2020,38 @@ async function guardarOrden() {
     btn.textContent = 'Guardando…';
   }
 
+  const datosOrden = {
+    client,
+    phone: (() => { const p = telefonoParaGuardar('modal-phone') || limpiarTelefono(phone); return p.length >= 10 ? p : (p.length >= 7 ? p : null); })(),
+    device,
+    imei: imei || null,
+    service,
+    sucursal_id,
+    tecnico_id: currentUser.rol === 'Técnico' ? currentUser.id : tecnico_id,
+    monto,
+    obs,
+  };
+
   try {
-    await OrdersAPI.create({
-      client,
-      phone: (() => { const p = telefonoParaGuardar('modal-phone') || limpiarTelefono(phone); return p.length >= 10 ? p : (p.length >= 7 ? p : null); })(),
-      device,
-      imei: imei || null,
-      service,
-      sucursal_id,
-      tecnico_id: currentUser.rol === 'Técnico' ? currentUser.id : tecnico_id,
-      monto,
-      obs,
-    });
+    let creada;
+    try {
+      creada = await OrdersAPI.create(datosOrden);
+    } catch (e) {
+      // El teléfono ya es de otro cliente: que el personal decida si es la misma persona
+      if (e.status !== 409 || !e.data?.conflicto_cliente) throw e;
+      const decision = await preguntarClienteDuplicado(e.data.conflicto_cliente, client);
+      if (!decision) return;
+      creada = await OrdersAPI.create({
+        ...datosOrden,
+        cliente_decision: decision,
+        cliente_id: decision === 'existente' ? e.data.conflicto_cliente.id : null,
+      });
+    }
     closeModal();
     await loadOrders();
     await loadClientes();
     showToast('✓ Orden creada correctamente');
+    if (creada?.aviso) showToast(creada.aviso, 'warn');
   } catch (e) {
     showToast(e.message || 'Error al crear orden', 'error');
   } finally {
@@ -2045,6 +2061,23 @@ async function guardarOrden() {
       btn.textContent = btn.dataset._oldText || 'Guardar orden';
     }
   }
+}
+
+/** Devuelve 'existente', 'nuevo' o null (si se cancela). */
+async function preguntarClienteDuplicado(existente, nombreNuevo) {
+  const r = await confirmarAccion({
+    titulo: '¿Es la misma persona?',
+    mensaje: `Este teléfono ya está registrado a nombre de «${existente.name}» (${existente.code}).`,
+    detalles: [
+      `Si «${nombreNuevo}» es la misma persona, la orden se guarda en su ficha.`,
+      'Si es otra persona (por ejemplo, un familiar con el mismo número), se crea un cliente nuevo y luego puedes darle su cuenta en la app.',
+    ],
+    aceptar: `Sí, es ${existente.name}`,
+    alternativa: 'No, crear cliente nuevo',
+    cancelar: 'Cancelar',
+  });
+  if (r === 'alternativa') return 'nuevo';
+  return r ? 'existente' : null;
 }
 
 async function verReciboOrden(id) {

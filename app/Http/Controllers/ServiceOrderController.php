@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cliente;
-use App\Support\ClientePhone;
 use App\Models\ServiceOrder;
 use App\Models\User;
 use App\Services\ClienteFidelidadService;
+use App\Support\ClientePhone;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class ServiceOrderController extends Controller
 {
@@ -58,6 +59,7 @@ class ServiceOrderController extends Controller
             'client' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'cliente_id' => ['nullable', 'exists:clientes,id'],
+            'cliente_decision' => ['nullable', 'in:existente,nuevo'],
             'device' => ['required', 'string', 'max:255'],
             'service' => ['required', 'string', 'max:255'],
             'sucursal_id' => ['nullable', 'exists:sucursales,id'],
@@ -72,13 +74,37 @@ class ServiceOrderController extends Controller
         $data['status'] = 'recepcion';
         $data['monto'] = $data['monto'] ?? 0;
 
+        $decision = $data['cliente_decision'] ?? null;
+        unset($data['cliente_decision']);
+
+        // Si el teléfono ya es de otro cliente con otro nombre, no se juntan a
+        // ciegas: la web pregunta si es la misma persona o un cliente nuevo.
+        if (empty($data['cliente_id']) && $decision === null && ! empty($data['phone'])) {
+            $porTelefono = ClientePhone::findByPhone($data['phone']);
+            if ($porTelefono && ! $this->mismoNombre($porTelefono->name, $data['client'])) {
+                return response()->json([
+                    'message' => "Este teléfono ya está registrado a nombre de {$porTelefono->name}.",
+                    'conflicto_cliente' => [
+                        'id' => $porTelefono->id,
+                        'code' => $porTelefono->code,
+                        'name' => $porTelefono->name,
+                    ],
+                ], 409);
+            }
+        }
+
         // Crear o vincular cliente automáticamente
-        $cliente = $this->resolverOCrearCliente(
-            $data['cliente_id'] ?? null,
-            $data['client'],
-            $data['phone'] ?? null,
-            $data['sucursal_id'] ?? null
-        );
+        $cliente = $decision === 'nuevo'
+            ? $this->crearCliente($data['client'], $data['phone'] ?? null, $data['sucursal_id'] ?? null)
+            : $this->resolverOCrearCliente(
+                $data['cliente_id'] ?? null,
+                $data['client'],
+                $data['phone'] ?? null,
+                $data['sucursal_id'] ?? null
+            );
+        if ($cliente && $decision === 'existente') {
+            $data['client'] = $cliente->name;
+        }
         if ($cliente) {
             $data['cliente_id'] = $cliente->id;
             if (empty($data['phone']) && $cliente->phone) {
@@ -88,7 +114,13 @@ class ServiceOrderController extends Controller
 
         $orden = ServiceOrder::create($data);
 
-        return response()->json($this->formatOrder($orden->load(['tecnico', 'sucursal', 'cliente'])), 201);
+        $respuesta = $this->formatOrder($orden->load(['tecnico', 'sucursal', 'cliente']));
+        if (! $cliente) {
+            // Antes esto solo quedaba en el log y nadie se enteraba.
+            $respuesta['aviso'] = 'La orden se guardó, pero no se pudo crear la ficha del cliente. Créala desde Clientes.';
+        }
+
+        return response()->json($respuesta, 201);
     }
 
     public function update(Request $request, ServiceOrder $order)
@@ -242,7 +274,6 @@ class ServiceOrderController extends Controller
         );
     }
 
-
     /**
      * Busca cliente por id / teléfono / nombre; si no existe, lo crea.
      */
@@ -277,11 +308,15 @@ class ServiceOrderController extends Controller
         }
 
         // 4) crear ficha nueva
-        $ultimo = Cliente::orderByDesc('id')->value('id') ?? 0;
-        $code = 'CLI-'.str_pad((string) ($ultimo + 1), 3, '0', STR_PAD_LEFT);
+        return $this->crearCliente($nombre, $phone, $sucursalId);
+    }
+
+    private function crearCliente(string $nombre, ?string $phone, $sucursalId): ?Cliente
+    {
+        $phoneNorm = $phone ? preg_replace('/\D+/', '', $phone) : '';
 
         $payload = [
-            'code' => $code,
+            'code' => Cliente::siguienteCodigo(),
             'name' => trim($nombre),
             'sucursal_id' => $sucursalId,
             'visits' => 1,
@@ -305,8 +340,17 @@ class ServiceOrderController extends Controller
         } catch (\Throwable $e) {
             // Último recurso: no romper la orden si falla el alta de cliente
             \Log::warning('No se pudo auto-crear cliente: '.$e->getMessage());
+
             return null;
         }
+    }
+
+    /** «Egor Kamado» y «egor  kamado» son el mismo nombre; «Huan Pérez» no. */
+    private function mismoNombre(?string $a, ?string $b): bool
+    {
+        $normalizar = fn (?string $t) => preg_replace('/\s+/', ' ', trim(mb_strtolower(Str::ascii((string) $t))));
+
+        return $normalizar($a) === $normalizar($b);
     }
 
     private function formatOrder(ServiceOrder $o): array

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cliente;
+use App\Models\ServiceOrder;
 use App\Support\ClientePhone;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -55,7 +56,7 @@ class ClienteController extends Controller
             ], 422);
         }
 
-        $data['code'] = $this->siguienteCodigo();
+        $data['code'] = Cliente::siguienteCodigo();
         $data['visits'] = 1;
         $data['last_visit'] = now();
         $data['active'] = true;
@@ -171,7 +172,6 @@ class ClienteController extends Controller
         return response()->json($this->format($cliente));
     }
 
-    
     /**
      * POST /api/clientes/unificar-duplicados
      * Junta fichas con el mismo teléfono (con o sin código de país).
@@ -181,7 +181,7 @@ class ClienteController extends Controller
     {
         $this->assertEsAdmin($request);
 
-        if (! class_exists(\App\Support\ClientePhone::class)) {
+        if (! class_exists(ClientePhone::class)) {
             return response()->json([
                 'message' => 'Falta app/Support/ClientePhone.php — cópialo y corre: composer dump-autoload',
             ], 500);
@@ -200,7 +200,7 @@ class ClienteController extends Controller
                 if ($a->id >= $b->id) {
                     continue;
                 }
-                if (\App\Support\ClientePhone::same($a->phone, $b->phone)) {
+                if (ClientePhone::same($a->phone, $b->phone)) {
                     $pares[] = $a->code.'('.$a->phone.') ≈ '.$b->code.'('.$b->phone.')';
                 }
             }
@@ -219,7 +219,7 @@ class ClienteController extends Controller
                     return true;
                 }
 
-                return \App\Support\ClientePhone::same($c->phone, $o->phone);
+                return ClientePhone::same($c->phone, $o->phone);
             })->values();
 
             if ($grupo->count() < 2) {
@@ -249,8 +249,8 @@ class ClienteController extends Controller
                         $principal->username = $dup->username;
                         $principal->password = $dup->getAttributes()['password'] ?? $dup->password;
                     }
-                    $pN = \App\Support\ClientePhone::norm($principal->phone);
-                    $dN = \App\Support\ClientePhone::norm($dup->phone);
+                    $pN = ClientePhone::norm($principal->phone);
+                    $dN = ClientePhone::norm($dup->phone);
                     if (strlen($dN) >= 7 && strlen($dN) < strlen($pN)) {
                         $principal->phone = $dN;
                     }
@@ -261,7 +261,7 @@ class ClienteController extends Controller
                         \DB::table('service_orders')->where('cliente_id', $dup->id)->update(['cliente_id' => $principal->id]);
                     } catch (\Throwable $e) {
                         try {
-                            \App\Models\ServiceOrder::where('cliente_id', $dup->id)->update(['cliente_id' => $principal->id]);
+                            ServiceOrder::where('cliente_id', $dup->id)->update(['cliente_id' => $principal->id]);
                         } catch (\Throwable $e2) {
                             $errores[] = 'órdenes '.$dup->code.': '.$e2->getMessage();
                         }
@@ -301,8 +301,6 @@ class ClienteController extends Controller
             'errores' => $errores,
         ]);
     }
-
-
 
     public function destroy(Request $request, Cliente $cliente)
     {
@@ -360,12 +358,5 @@ class ClienteController extends Controller
         if (! method_exists($user, 'esSuperAdmin') || ! $user->esSuperAdmin()) {
             abort(403, 'Solo el Super Admin puede eliminar clientes.');
         }
-    }
-
-    private function siguienteCodigo(): string
-    {
-        $ultimo = Cliente::orderByDesc('id')->value('id') ?? 0;
-
-        return 'CLI-'.str_pad((string) ($ultimo + 1), 3, '0', STR_PAD_LEFT);
     }
 }
