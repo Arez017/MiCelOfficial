@@ -10,7 +10,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class Cliente extends Model implements AuthenticatableContract
 {
-    use HasFactory, Authenticatable, HasApiTokens;
+    use Authenticatable, HasApiTokens, HasFactory;
 
     protected $fillable = [
         'code',
@@ -57,5 +57,26 @@ class Cliente extends Model implements AuthenticatableContract
     public function tieneCuenta(): bool
     {
         return ! empty($this->username) && ! empty($this->password);
+    }
+
+    /**
+     * Siguiente código libre (CLI-001, CLI-002…). Toma el número más alto entre
+     * los ids y los códigos existentes, y salta los que ya estén usados, así
+     * nunca choca aunque se hayan borrado o unificado clientes.
+     */
+    public static function siguienteCodigo(): string
+    {
+        $mayorCodigo = static::query()
+            ->where('code', 'like', 'CLI-%')
+            ->pluck('code')
+            ->map(fn (string $c) => (int) preg_replace('/\D+/', '', $c))
+            ->max() ?? 0;
+        $numero = max($mayorCodigo, (int) (static::max('id') ?? 0)) + 1;
+
+        do {
+            $codigo = 'CLI-'.str_pad((string) $numero++, 3, '0', STR_PAD_LEFT);
+        } while (static::where('code', $codigo)->exists());
+
+        return $codigo;
     }
 }

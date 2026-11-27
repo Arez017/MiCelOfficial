@@ -1,6 +1,7 @@
 /* ===== Ventana de confirmación con el estilo de MiCel =====
  * Uso:  if (!(await confirmarAccion({ titulo, mensaje, aceptar, cancelar }))) return;
  * Devuelve una promesa: true si se pulsa «aceptar», false si se cancela (botón, Esc o clic afuera).
+ * Con `alternativa: 'Texto'` aparece un tercer botón que devuelve 'alternativa'.
  * Usa las mismas clases que los modales del sistema, así respeta el modo oscuro y el claro.
  */
 (function () {
@@ -8,7 +9,7 @@
     return String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  window.confirmarAccion = function ({ titulo = '¿Confirmar?', mensaje = '', detalles = [], aceptar = 'Aceptar', cancelar = 'Cancelar' } = {}) {
+  window.confirmarAccion = function ({ titulo = '¿Confirmar?', mensaje = '', detalles = [], aceptar = 'Aceptar', cancelar = 'Cancelar', alternativa = null } = {}) {
     return new Promise((resolver) => {
       if (!document.body) { resolver(window.confirm(titulo + '\n\n' + mensaje)); return; }
 
@@ -34,6 +35,7 @@
         '  </div>' +
         '  <div class="modal-footer">' +
         '    <button type="button" class="btn-secondary" data-r="no">' + escapar(cancelar) + '</button>' +
+        (alternativa ? '    <button type="button" class="btn-secondary" data-r="alt">' + escapar(alternativa) + '</button>' : '') +
         '    <button type="button" class="btn-primary" data-r="si">' + escapar(aceptar) + '</button>' +
         '  </div>' +
         '</div>';
@@ -50,7 +52,7 @@
       capa.addEventListener('click', (e) => {
         if (e.target === capa) { cerrar(false); return; }
         const b = e.target.closest('[data-r]');
-        if (b) cerrar(b.dataset.r === 'si');
+        if (b) cerrar(b.dataset.r === 'alt' ? 'alternativa' : b.dataset.r === 'si');
       });
       document.addEventListener('keydown', teclas, true);
       document.body.appendChild(capa);
